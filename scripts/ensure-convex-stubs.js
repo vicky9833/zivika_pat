@@ -16,8 +16,10 @@ const GENERATED_DIR = path.join(__dirname, "..", "convex", "_generated");
 
 const STUBS = {
   "api.js": `/* auto-generated stub — run \`npx convex dev\` to regenerate */
-export const api = {};
-export const internal = {};
+import { anyApi, componentsGeneric } from "convex/server";
+export const api = anyApi;
+export const internal = anyApi;
+export const components = componentsGeneric();
 `,
   "api.d.ts": `/* auto-generated stub */
 export declare const api: Record<string, unknown>;
@@ -30,8 +32,23 @@ export type Id<T extends string> = string & { __tableName: T };
   "react.js": `/* auto-generated stub */
 export { useQuery, useMutation, useAction } from "convex/react";
 `,
-  "server.js": `/* auto-generated stub */
-export { query, mutation, action, internalQuery, internalMutation, internalAction, httpAction } from "convex/server";
+  "server.js": `/* auto-generated stub — run \`npx convex dev\` to regenerate */
+import {
+  actionGeneric,
+  httpActionGeneric,
+  queryGeneric,
+  mutationGeneric,
+  internalActionGeneric,
+  internalMutationGeneric,
+  internalQueryGeneric,
+} from "convex/server";
+export const query = queryGeneric;
+export const internalQuery = internalQueryGeneric;
+export const mutation = mutationGeneric;
+export const internalMutation = internalMutationGeneric;
+export const action = actionGeneric;
+export const internalAction = internalActionGeneric;
+export const httpAction = httpActionGeneric;
 `,
 };
 

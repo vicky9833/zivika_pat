@@ -42,5 +42,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# convex generated (auto-created by npx convex dev)
-convex/_generated/
+# convex generated — commit these so Vercel build has proper bindings
+# convex/_generated/
