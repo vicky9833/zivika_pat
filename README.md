@@ -1,13 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Zivika Labs — India's Intelligent Health OS
+
+A mobile-first Progressive Web App for personal health management. Scan reports, track vitals, manage medications, and get intelligent health guidance.
+
+## Tech Stack
+
+- **Frontend**: Next.js 15, Tailwind CSS v4, Framer Motion
+- **Database**: Convex (real-time, serverless)
+- **Auth**: Clerk (Google + Email OTP)
+- **AI**: Groq (Llama 3.1, 10-model fallback)
+- **Hosting**: Vercel
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js 18+
+- npm 9+
+- Convex account (convex.dev)
+- Clerk account (clerk.com)
+- Groq API key (console.groq.com)
 
-```bash
-npm run dev
-# or
-yarn dev
+### Setup
+
+1. Clone the repository
+2. Install dependencies:
+   ```
+   npm install
+   ```
+
+3. Create `.env.local` with your credentials:
+   ```
+   NEXT_PUBLIC_CONVEX_URL=your_convex_url
+   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_key
+   CLERK_SECRET_KEY=your_clerk_secret
+   CLERK_WEBHOOK_SECRET=your_webhook_secret
+   GROQ_API_KEY=your_groq_key
+   ```
+
+4. Start Convex (keep running in separate terminal):
+   ```
+   npx convex dev
+   ```
+
+5. Run the app:
+   ```
+   npm run dev
+   ```
+
+6. Open http://localhost:3000
+
+### Deployment
+
+Push to GitHub, connect to Vercel, add environment variables in Vercel dashboard.
+
+Set Convex deployment URL to production:
+```
+npx convex deploy
+```
+
+## Project Structure
+
+```
+src/app/          — Next.js App Router pages (20 routes)
+src/components/   — Reusable UI components
+src/lib/          — Stores, hooks, utilities
+convex/           — Backend functions and schema
+```
+
+## Features
+
+- Scan any medical report — AI extracts and structures data
+- Health Locker — secure storage for all records
+- Health Copilot — intelligent health assistant
+- Digital Twin — health score and predictions
+- Medication tracker with adherence calendar
+- Vitals monitoring with trend charts
+- Family health management
+- Multilingual responses (7 Indian languages)
+
+## License
+
+Private — Zivika Labs Pvt Ltd
+
 # or
 pnpm dev
 # or

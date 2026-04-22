@@ -1,0 +1,139 @@
+"use client";
+
+import { motion } from "framer-motion";
+import { Stethoscope } from "lucide-react";
+
+const B = "var(--font-dm-sans, 'DM Sans', sans-serif)";
+
+function formatTime(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+}
+
+/**
+ * Minimal markdown renderer:
+ * - **bold** between double-asterisks
+ * - Lines starting with • rendered as separate blocks
+ * - Blank lines create paragraph spacing
+ */
+function renderText(text, isUser) {
+  const lines = text.split("\n");
+  return lines.map((line, li) => {
+    const parts = line.split(/\*\*(.*?)\*\*/g);
+    const rendered = parts.map((part, pi) =>
+      pi % 2 === 1 ? (
+        <strong key={pi} style={{ fontWeight: 700 }}>
+          {part}
+        </strong>
+      ) : (
+        <span key={pi}>{part}</span>
+      )
+    );
+    const isBullet = line.trim().startsWith("•");
+    const isEmpty = line.trim() === "";
+    return (
+      <span
+        key={li}
+        style={{
+          display: "block",
+          marginTop: li === 0 ? 0 : isEmpty ? 6 : isBullet ? 3 : 5,
+          paddingLeft: isBullet ? 2 : 0,
+          color: isUser ? "#fff" : "#0B1F18",
+        }}
+      >
+        {rendered}
+      </span>
+    );
+  });
+}
+
+/**
+ * ChatBubble — renders a single chat message.
+ *
+ * Props:
+ *  role        "user" | "assistant"
+ *  text        message string (supports **bold** and • bullets)
+ *  timestamp   Date object
+ *  showAvatar  bool — show the 🌿 icon for first message in an assistant sequence
+ */
+export default function ChatBubble({ role, text, timestamp, showAvatar }) {
+  const isUser = role === "user";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: isUser ? 18 : -18, y: 4 }}
+      animate={{ opacity: 1, x: 0, y: 0 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: isUser ? "flex-end" : "flex-start",
+        marginBottom: 2,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-end",
+          gap: 8,
+          flexDirection: isUser ? "row-reverse" : "row",
+        }}
+      >
+        {/* Assistant avatar — placeholder slot keeps alignment consistent */}
+        {!isUser && (
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              background: showAvatar
+                ? "linear-gradient(135deg, #0D6E4F, #00C9A7)"
+                : "transparent",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              marginBottom: 4,
+              opacity: showAvatar ? 1 : 0,
+            }}
+          >
+            {showAvatar && <Stethoscope size={12} color="#fff" />}
+          </div>
+        )}
+
+        <div
+          style={{
+            maxWidth: isUser ? "80%" : "85%",
+            minWidth: 60,
+            background: isUser
+              ? "linear-gradient(135deg, #0D6E4F, #065F46)"
+              : "#fff",
+            borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+            padding: "12px 16px",
+            border: isUser ? "none" : "1px solid #DCE8E2",
+            boxShadow: isUser ? "none" : "0 2px 8px rgba(0,0,0,0.04)",
+            fontFamily: B,
+            fontSize: "0.875rem",
+            lineHeight: 1.5,
+            wordBreak: "break-word",
+          }}
+        >
+          {renderText(text, isUser)}
+        </div>
+      </div>
+
+      {/* Timestamp */}
+      <p
+        style={{
+          fontFamily: B,
+          fontSize: "0.63rem",
+          color: "#B8D4C5",
+          margin: "3px 0 0",
+          paddingLeft: !isUser ? 36 : 0,
+        }}
+      >
+        {formatTime(timestamp)}
+      </p>
+    </motion.div>
+  );
+}

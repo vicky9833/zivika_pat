@@ -1,0 +1,581 @@
+﻿"use client";
+
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Stethoscope, Globe, MoreVertical, ChevronLeft, Mic, Send } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "@/components/ui/Toast";
+import { useRecordsStore } from "@/lib/stores/records-store";
+import { useUserStore } from "@/lib/stores/user-store";
+import { useVitalsStore } from "@/lib/stores/vitals-store";
+import { useMedicationsStore } from "@/lib/stores/medications-store";
+import { useConvexUser } from "@/lib/hooks/useConvexUser";
+import { useConvexChat } from "@/lib/hooks/useConvexChat";
+import ChatBubble from "@/components/copilot/ChatBubble";
+import TypingIndicator from "@/components/copilot/TypingIndicator";
+import QuickPrompts from "@/components/copilot/QuickPrompts";
+
+const H = "var(--font-outfit, 'Outfit', sans-serif)";
+const B = "var(--font-dm-sans, 'DM Sans', sans-serif)";
+
+const COPILOT_QUICK_PROMPTS = [
+  "What's going on with my sugar levels?",
+  "Should I worry about this vitamin D thing?",
+  "Any food tips for my diabetes?",
+  "Break down my last blood test for me",
+  "Am I taking too many tablets?",
+  "Summarize how I'm doing overall",
+];
+
+const DOCTOR_QUICK_PROMPTS = [
+  "I've had a headache for 3 days",
+  "Is it normal to feel tired all the time?",
+  "What can I eat to lower cholesterol?",
+  "My kid has a fever — what should I do?",
+  "How much water should I really drink?",
+];
+
+const LANGUAGES = [
+  { code: "en", label: "EN" },
+  { code: "hi", label: "हिंदी" },
+  { code: "kn", label: "ಕನ್ನಡ" },
+  { code: "ta", label: "தமிழ்" },
+  { code: "te", label: "తెలుగు" },
+  { code: "bn", label: "বাংলা" },
+  { code: "mr", label: "मराठी" },
+];
+
+let docMsgId = 1;
+function newDocId() { return `doc-${Date.now()}-${docMsgId++}`; }
+
+// â”€â”€ Simulated voice questions (replace with Sarvam AI STT in production) â”€â”€â”€â”€â”€
+// SARVAM AI STT INTEGRATION POINT:
+// POST https://api.sarvam.ai/speech-to-text
+// Headers: { "api-subscription-key": process.env.NEXT_PUBLIC_SARVAM_API_KEY }
+// Body: FormData { "file": audioBlob, "language_code": "hi-IN"|"kn-IN"|"en-IN", "model": "saarika:v2" }
+// Then call sendDoctorMessage(data.transcript) instead of a simulated question.
+const VOICE_QUESTIONS = [
+  "I've been having headaches for the past three days and paracetamol isn't helping",
+  "My mother's sugar levels are very high in the morning, what should she do?",
+  "Is it safe to take crocin and dolo together?",
+  "I'm feeling very tired all the time even after sleeping well",
+  "My child has been coughing at night for a week",
+];
+let voiceQIdx = 0;
+function nextVoiceQuestion() {
+  const q = VOICE_QUESTIONS[voiceQIdx % VOICE_QUESTIONS.length];
+  voiceQIdx++;
+  return q;
+}
+
+// â”€â”€â”€ Inner page â€” uses useSearchParams so must be wrapped in Suspense â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function CopilotPageInner() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const modeParam = searchParams.get("mode");
+  const titleParam = searchParams.get("title");
+
+  const records = useRecordsStore((s) => s.records);
+  const user = useUserStore((s) => s.user);
+  const vitalsReadings = useVitalsStore((s) => s.readings);
+  const getLatestVitals = useVitalsStore((s) => s.getLatestVitals);
+  const latestVitals = useMemo(() => getLatestVitals(), [vitalsReadings]);
+  const { medications } = useMedicationsStore();
+
+  const { convexUser } = useConvexUser();
+  const copilotChat = useConvexChat(convexUser, "copilot");
+  const doctorChat  = useConvexChat(convexUser, "doctor");
+
+  const firstName = user.firstName || user.name?.split(" ")[0] || "there";
+
+  const [mode, setMode] = useState(modeParam === "doctor" ? "doctor" : "copilot");
+  const [language, setLanguage] = useState(convexUser?.nativeLanguage ?? "en");
+  const [isTyping, setIsTyping] = useState(false);
+  const [inputText, setInputText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showLangBar, setShowLangBar] = useState(false);
+
+  const textareaRef = useRef(null);
+  const endRef = useRef(null);
+  const recordingTimerRef = useRef(null);
+
+  // Build a plain-language health context string for Groq
+  const healthContextString = useMemo(() => {
+    const contextParts = [
+      user?.name         && `Patient: ${user.name}`,
+      user?.bloodGroup   && `Blood group: ${user.bloodGroup}`,
+      user?.conditions?.length > 0 && `Conditions: ${user.conditions.join(", ")}`,
+      user?.bmi          && `BMI: ${user.bmi} (${user.bmiCategory})`,
+      records?.length > 0          && `Has ${records.length} health records on file`,
+      medications?.length > 0      && `Current medications: ${medications.map((m) => m.name).join(", ")}`,
+    ].filter(Boolean);
+    return contextParts.join(". ");
+  }, [user, medications, records]);
+
+  // Inject context message when navigating from a record page
+  useEffect(() => {
+    if (titleParam && copilotChat.messages.length === 0) {
+      copilotChat.sendMessage(
+        `Tell me about my ${decodeURIComponent(titleParam)} record`,
+        language,
+        healthContextString,
+        convexUser
+      ).catch(console.error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-scroll on new messages
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [copilotChat.messages, doctorChat.messages, isTyping]);
+
+  // Auto-grow textarea
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 100) + "px";
+  }, [inputText]);
+
+  const sendCopilotMessage = useCallback(
+    async (text) => {
+      if (!text.trim() || isTyping) return;
+      setIsTyping(true);
+      try {
+        await copilotChat.sendMessage(text, language, healthContextString, convexUser);
+      } catch {
+        // sendMessage already saves error message to Convex
+      } finally {
+        setIsTyping(false);
+      }
+    },
+    [isTyping, language, healthContextString, convexUser, copilotChat]
+  );
+
+  const sendDoctorMessage = useCallback(
+    async (text) => {
+      if (!text.trim() || isTyping) return;
+      setIsTyping(true);
+      try {
+        await doctorChat.sendMessage(text, language, healthContextString, convexUser);
+      } catch {
+        // handled inside hook
+      } finally {
+        setIsTyping(false);
+      }
+    },
+    [isTyping, language, healthContextString, convexUser]
+  );
+
+  function handleSend() {
+    const text = inputText.trim();
+    if (!text || isTyping) return;
+    if (mode === "copilot") sendCopilotMessage(text);
+    else sendDoctorMessage(text);
+    setInputText("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }
+
+  function handleMicPress() {
+    if (isTyping) return;
+    if (isRecording) {
+      clearTimeout(recordingTimerRef.current);
+      setIsRecording(false);
+      setIsProcessing(true);
+      setTimeout(() => {
+        const question = nextVoiceQuestion();
+        setIsProcessing(false);
+        if (mode === "copilot") sendCopilotMessage(question);
+        else sendDoctorMessage(question);
+      }, 1000);
+    } else {
+      setIsRecording(true);
+      recordingTimerRef.current = setTimeout(() => {
+        setIsRecording(false);
+        setIsProcessing(true);
+        setTimeout(() => {
+          const question = nextVoiceQuestion();
+          setIsProcessing(false);
+          if (mode === "copilot") sendCopilotMessage(question);
+          else sendDoctorMessage(question);
+        }, 1000);
+      }, 3000);
+    }
+  }
+
+  const hasMessages = mode === "copilot" ? copilotChat.messages.length > 0 : doctorChat.messages.length > 0;
+  const displayMessages = mode === "copilot" ? copilotChat.messages : doctorChat.messages;
+  const canSend = inputText.trim().length > 0 && !isTyping;
+  const showLang = mode === "doctor" || showLangBar;
+
+  return (
+    <div style={{ background: "#fff", minHeight: "100%" }}>
+
+      {/* â”€â”€ SECTION 1: Minimal sticky header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      <div
+        style={{
+          position: "sticky",
+          top: 64,
+          zIndex: 20,
+          height: 56,
+          background: "#fff",
+          borderBottom: "1px solid #F0F7F4",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 16px",
+          boxSizing: "border-box",
+        }}
+      >
+        <button
+          onClick={() => router.back()}
+          style={{
+            width: 36, height: 36, borderRadius: "50%",
+            background: "#F0F7F4", border: "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", flexShrink: 0,
+          }}
+          aria-label="Go back"
+        >
+          <ChevronLeft size={20} color="#0B1F18" />
+        </button>
+
+        <span style={{ fontFamily: H, fontWeight: 600, fontSize: 16, color: "#0B1F18" }}>
+          {mode === "copilot" ? "AI Copilot" : "AI Doctor"}
+        </span>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setShowLangBar((v) => !v)}
+            style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: showLangBar ? "#DCE8E2" : "#F0F7F4",
+              border: "none",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer",
+            }}
+            aria-label="Language selector"
+          >
+            <Globe size={18} color="#0B1F18" />
+          </button>
+          <button
+            onClick={() => toast("Options coming soon", "info")}
+            style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: "#F0F7F4", border: "none",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer",
+            }}
+            aria-label="More options"
+          >
+            <MoreVertical size={18} color="#0B1F18" />
+          </button>
+        </div>
+      </div>
+
+      {/* â”€â”€ SECTION 2: Mode toggle (only when no messages) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      <AnimatePresence>
+        {!hasMessages && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.18 }}
+            style={{ display: "flex", justifyContent: "center", padding: "12px 0 0" }}
+          >
+            <div
+              style={{
+                display: "inline-flex",
+                background: "#F0F7F4",
+                borderRadius: 50,
+                padding: 4,
+              }}
+            >
+              {[
+                { key: "copilot", label: "Personal" },
+                { key: "doctor", label: "Doctor" },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => { setMode(key); setIsTyping(false); }}
+                  style={{
+                    padding: "8px 20px",
+                    borderRadius: 50,
+                    border: "none",
+                    cursor: "pointer",
+                    fontFamily: H,
+                    fontSize: 13,
+                    background: mode === key ? "#fff" : "transparent",
+                    color: mode === key ? "#0D6E4F" : "#8EBAA3",
+                    fontWeight: mode === key ? 600 : 400,
+                    boxShadow: mode === key ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* â”€â”€ SECTION 3: Chat area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {!hasMessages ? (
+        /* Empty state */
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "40px 20px",
+            paddingBottom: showLang ? "calc(44px + 62px + 24px)" : "calc(62px + 24px)",
+          }}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            style={{
+              width: 64, height: 64, borderRadius: "50%",
+              background: "linear-gradient(135deg, #0D6E4F, #00C9A7)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <Stethoscope size={28} color="#fff" />
+          </motion.div>
+
+          <motion.h2
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.22 }}
+            style={{
+              fontFamily: H, fontWeight: 700, fontSize: 20,
+              color: "#0B1F18", margin: "16px 0 0", textAlign: "center",
+            }}
+          >
+            {mode === "copilot" ? `Hi ${firstName}!` : "Namaste!"}
+          </motion.h2>
+
+          <motion.p
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15, duration: 0.22 }}
+            style={{
+              fontFamily: B, fontSize: 14, color: "#8EBAA3",
+              margin: "6px 0 0", textAlign: "center", padding: "0 40px",
+            }}
+          >
+            {mode === "copilot"
+              ? "I know your health history. Ask me anything."
+              : "Ask any health question. I speak your language."}
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.28 }}
+            style={{ marginTop: 28, width: "100%" }}
+          >
+            <QuickPrompts
+              prompts={mode === "copilot" ? COPILOT_QUICK_PROMPTS : DOCTOR_QUICK_PROMPTS}
+              onSelect={(p) => {
+                if (isTyping) return;
+                if (mode === "copilot") sendCopilotMessage(p);
+                else sendDoctorMessage(p);
+              }}
+            />
+          </motion.div>
+        </div>
+      ) : (
+        /* Chat messages */
+        <div
+          style={{
+            padding: "12px 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            paddingBottom: showLang ? "calc(44px + 62px + 24px)" : "calc(62px + 24px)",
+          }}
+        >
+          {displayMessages.map((msg, i) => {
+            const prev = displayMessages[i - 1];
+            const showAvatar = msg.role === "assistant" && (!prev || prev.role !== "assistant");
+            // Convex messages use 'content' and 'createdAt'; normalize for ChatBubble
+            const text = msg.content ?? msg.text ?? "";
+            const timestamp = msg.createdAt ? new Date(msg.createdAt) : msg.timestamp;
+            return (
+              <ChatBubble
+                key={msg._id ?? msg.id}
+                role={msg.role}
+                text={text}
+                timestamp={timestamp}
+                showAvatar={showAvatar}
+              />
+            );
+          })}
+          {isTyping && <TypingIndicator />}
+          <div ref={endRef} style={{ height: 1 }} />
+        </div>
+      )}
+
+      {/* â”€â”€ SECTIONS 4+5: Fixed input bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: "calc(72px + env(safe-area-inset-bottom, 0px))",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "100%",
+          maxWidth: 390,
+          zIndex: 30,
+          background: "#fff",
+          boxSizing: "border-box",
+        }}
+      >
+        {/* Language bar */}
+        <AnimatePresence>
+          {showLang && (
+            <motion.div
+              key="langbar"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 44, opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{
+                background: "#F0F7F4",
+                overflowX: "auto",
+                overflowY: "hidden",
+                scrollbarWidth: "none",
+                msOverflowStyle: "none",
+                display: "flex",
+                alignItems: "center",
+                padding: "0 16px",
+                gap: 8,
+                boxSizing: "border-box",
+              }}
+            >
+              {LANGUAGES.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => setLanguage(lang.code)}
+                  style={{
+                    flexShrink: 0,
+                    padding: "4px 10px",
+                    borderRadius: 20,
+                    border: "none",
+                    background: language === lang.code ? "#0D6E4F" : "transparent",
+                    color: language === lang.code ? "#fff" : "#5A7A6E",
+                    fontFamily: B,
+                    fontSize: 10,
+                    fontWeight: language === lang.code ? 600 : 400,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Input row */}
+        <div
+          style={{
+            borderTop: "1px solid #F0F7F4",
+            padding: "10px 16px",
+            display: "flex",
+            alignItems: "flex-end",
+            gap: 8,
+            background: "#fff",
+            boxSizing: "border-box",
+          }}
+        >
+          <button
+            onClick={handleMicPress}
+            style={{
+              width: 40, height: 40, borderRadius: "50%",
+              background: isRecording ? "#FEE2E2" : "#F0F7F4",
+              border: "none",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", flexShrink: 0,
+              transition: "background 0.2s",
+            }}
+            aria-label={isRecording ? "Stop recording" : "Start voice input"}
+          >
+            <Mic size={16} color={isRecording ? "#DC2626" : "#0D6E4F"} />
+          </button>
+
+          <textarea
+            ref={textareaRef}
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              isRecording ? "Listening..."
+              : isProcessing ? "Processing..."
+              : mode === "copilot" ? "Ask about your health..."
+              : "Ask any health question..."
+            }
+            rows={1}
+            disabled={isTyping || isRecording || isProcessing}
+            style={{
+              flex: 1,
+              resize: "none",
+              border: "none",
+              borderRadius: 24,
+              padding: "10px 14px",
+              fontFamily: B,
+              fontSize: 14,
+              color: "#0B1F18",
+              background: "#F0F7F4",
+              outline: "none",
+              lineHeight: 1.5,
+              minHeight: 40,
+              maxHeight: 100,
+              overflowY: "auto",
+              display: "block",
+              boxSizing: "border-box",
+            }}
+          />
+
+          <button
+            onClick={handleSend}
+            disabled={!canSend}
+            aria-label="Send message"
+            style={{
+              width: 40, height: 40, borderRadius: "50%",
+              border: "none",
+              background: canSend ? "#0D6E4F" : "#F0F7F4",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: canSend ? "pointer" : "default",
+              flexShrink: 0,
+              transition: "background 0.18s",
+            }}
+          >
+            <Send size={16} color={canSend ? "#fff" : "#8EBAA3"} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page export — Suspense boundary required for useSearchParams ─────────────
+export default function CopilotPage() {
+  return (
+    <Suspense fallback={null}>
+      <CopilotPageInner />
+    </Suspense>
+  );
+}

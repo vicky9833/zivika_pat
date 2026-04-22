@@ -1,26 +1,183 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ─── Tailwind v4 Design Tokens ─────────────────────────────── */
+@theme {
+  /* Zivika palette */
+  --color-zivika-50:  #F0F7F4;
+  --color-zivika-100: #DCE8E2;
+  --color-zivika-200: #B8D4C5;
+  --color-zivika-300: #8EBAA3;
+  --color-zivika-400: #5A9A7E;
+  --color-zivika-500: #0D6E4F;
+  --color-zivika-600: #0A5A40;
+  --color-zivika-700: #084832;
+  --color-zivika-800: #053624;
+  --color-zivika-900: #0B1F18;
+
+  /* Accent */
+  --color-accent:       #00C9A7;
+  --color-accent-light: #00FFD1;
+
+  /* Surfaces */
+  --color-surface:        #FFFFFF;
+  --color-surface-alt:    #F0F7F4;
+  --color-surface-border: #DCE8E2;
+
+  /* Semantic */
+  --color-danger:  #E74C3C;
+  --color-warning: #F39C12;
+  --color-success: #27AE60;
+  --color-info:    #2980B9;
+
+  /* Typography — variables injected by next/font/google in layout.js */
+  --font-display: var(--font-outfit, 'Outfit', sans-serif);
+  --font-body:    var(--font-dm-sans, 'DM Sans', sans-serif);
+
+  /* Border radius */
+  --radius-card: 16px;
+  --radius-inner: 10px;
+  --radius-chip: 6px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ─── Base styles ────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+  /* Dark surround so the phone frame is visible on desktop */
+  background-color: #111111;
+  /* Center the 390px app column */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  font-family: var(--font-dm-sans, 'DM Sans', sans-serif);
+  color: #0B1F18;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* ─── 390px phone-frame app container ───────────────────────── */
+.app-container {
+  width: 100%;
+  max-width: 390px;
+  min-height: 100dvh;
+  background-color: #ffffff;
+  position: relative;
+  overflow-x: hidden;
+  /* New stacking context — fixed children with left:50%+translateX(-50%)
+     will still be viewport-relative but align within the frame */
+  isolation: isolate;
+}
+
+/* Full-width on actual mobile devices */
+@media (max-width: 390px) {
+  .app-container {
+    max-width: 100%;
+  }
+  body {
+    background-color: #ffffff;
+  }
+}
+
+/* ─── Modal overlay utility class ───────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 390px;
+  height: 100dvh;
+  z-index: 100;
+  background-color: rgba(11, 31, 24, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+/* ─── Momentum scrolling on iOS ──────────────────────────────── */
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ─── Utility classes ────────────────────────────────────────── */
+.font-display {
+  font-family: var(--font-outfit, 'Outfit', sans-serif);
+}
+.font-body {
+  font-family: var(--font-dm-sans, 'DM Sans', sans-serif);
+}
+
+/* Text gradient utility */
+.text-gradient {
+  background: linear-gradient(135deg, #0D6E4F, #00C9A7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Accent gradient button utility */
+.bg-accent-gradient {
+  background: linear-gradient(135deg, #0D6E4F, #00C9A7);
+}
+
+/* Primary gradient (dark green) */
+.bg-primary-gradient {
+  background: linear-gradient(135deg, #0D6E4F, #084832);
+}
+
+/* Glass morphism */
+.glass {
+  background: linear-gradient(135deg, rgba(13,110,79,0.08), rgba(0,201,167,0.04));
+  border: 1.5px dashed rgba(0,201,167,0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Glow hover effect */
+.hover-glow:hover {
+  box-shadow: 0 0 24px rgba(0,201,167,0.15);
+}
+
+/* Scrollbar hide */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Green-tinted card shadow */
+.shadow-zivika {
+  box-shadow: 0 4px 16px rgba(13,110,79,0.08);
+}
+.shadow-zivika-md {
+  box-shadow: 0 8px 24px rgba(13,110,79,0.12);
+}
+
+/* Dashboard page background */
+.dashboard-page {
+  background: #F0F7F4;
+  min-height: 100vh;
+}
+
+/* Pulse animation for online indicator dot */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(1.4); }
+}
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
 }
