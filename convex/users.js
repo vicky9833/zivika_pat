@@ -135,3 +135,43 @@ export const updateProfile = mutation({
     return user._id;
   },
 });
+
+// ── Upload profile photo ──────────────────────────────────────────────────
+export const updateProfilePhoto = mutation({
+  args: {
+    clerkId:          v.string(),
+    photoStorageId:   v.string(),
+  },
+  handler: async (ctx, { clerkId, photoStorageId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    if (identity.subject !== clerkId) throw new Error("Unauthorized");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+    if (!user) throw new Error("User not found");
+    await ctx.db.patch(user._id, { profilePhotoStorageId: photoStorageId });
+    return user._id;
+  },
+});
+
+// ── Get profile photo URL ─────────────────────────────────────────────────
+export const getPhotoUrl = query({
+  args: { storageId: v.string() },
+  handler: async (ctx, { storageId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    return await ctx.storage.getUrl(storageId);
+  },
+});
+
+// ── Generate upload URL for profile photo ────────────────────────────────
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    return await ctx.storage.generateUploadUrl();
+  },
+});

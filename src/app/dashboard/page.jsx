@@ -9,6 +9,7 @@ import {
   Brain, Leaf, Droplets,
   Camera, MessageCircle, Rss, ClipboardList,
   ArrowUpRight, CalendarDays,
+  HeartPulse, Users, Frown, Meh, Smile, SmilePlus, Sun, Flame,
 } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
 import MedCheckbox from "@/components/medications/MedCheckbox";
@@ -17,31 +18,32 @@ import { useVitalsStore } from "@/lib/stores/vitals-store";
 import { useMedicationsStore } from "@/lib/stores/medications-store";
 import { useRecordsStore } from "@/lib/stores/records-store";
 import { computeTwinScores } from "@/lib/twin-engine";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { t } from "@/lib/translations";
 
 /* ─── Utilities ──────────────────────────────────────────────────────────── */
-function getHumanGreeting(firstName, meds) {
+function getHumanGreeting(firstName, meds, language) {
   const hour = new Date().getHours();
   const greet = (base) => firstName ? `${base}, ${firstName}` : base;
   const pendingMeds = (meds || []).filter((m) => m.isToday && !m.taken).length;
 
-  function morningContext() {
-    if (pendingMeds > 0) return `${pendingMeds} medication${pendingMeds > 1 ? "s" : ""} to take today`;
-    return "All medications taken. Great start!";
-  }
-  function afternoonContext() {
-    if (pendingMeds > 0) return `Don't forget — ${pendingMeds} med${pendingMeds > 1 ? "s" : ""} still pending`;
-    return "You're on track with your health today";
-  }
-  function eveningContext() {
-    if (pendingMeds > 0) return `${pendingMeds} medication${pendingMeds > 1 ? "s" : ""} left for today`;
-    return "You did great today. Rest well tonight.";
-  }
+  let greetKey = "goodMorning";
+  if (hour < 6) greetKey = "goodNight";
+  else if (hour < 12) greetKey = "goodMorning";
+  else if (hour < 17) greetKey = "goodAfternoon";
+  else if (hour < 21) greetKey = "goodEvening";
+  else greetKey = "goodNight";
 
-  if (hour < 6)  return { greeting: greet("Rest well"), subtitle: "Your health is in good hands" };
-  if (hour < 12) return { greeting: greet("Good morning"), subtitle: morningContext() };
-  if (hour < 17) return { greeting: greet("Good afternoon"), subtitle: afternoonContext() };
-  if (hour < 21) return { greeting: greet("Good evening"), subtitle: eveningContext() };
-  return { greeting: greet("Good night"), subtitle: "Track your sleep tomorrow morning" };
+  const base = t(greetKey, language);
+
+  let subtitle;
+  if (hour < 6) subtitle = "Your health is in good hands";
+  else if (hour < 12) subtitle = pendingMeds > 0 ? `${pendingMeds} medication${pendingMeds > 1 ? "s" : ""} to take today` : "All medications taken. Great start!";
+  else if (hour < 17) subtitle = pendingMeds > 0 ? `Don't forget — ${pendingMeds} med${pendingMeds > 1 ? "s" : ""} still pending` : "You're on track with your health today";
+  else if (hour < 21) subtitle = pendingMeds > 0 ? `${pendingMeds} medication${pendingMeds > 1 ? "s" : ""} left for today` : "You did great today. Rest well tonight.";
+  else subtitle = "Track your sleep tomorrow morning";
+
+  return { greeting: greet(base), subtitle };
 }
 
 const H = "var(--font-outfit, 'Outfit', sans-serif)";
@@ -221,7 +223,7 @@ function MedRow({ med, onToggle }) {
   );
 }
 
-/* ─── Quick action card ──────────────────────────────────────────────────── */
+/* ─── Quick action card (no background icon) ────────────────────────────── */
 function QuickActionCard({ icon: Icon, iconColor, label, subtitle, href, router }) {
   return (
     <motion.div
@@ -237,16 +239,9 @@ function QuickActionCard({ icon: Icon, iconColor, label, subtitle, href, router 
         cursor: "pointer",
         position: "relative",
         minWidth: 0,
-        overflow: "hidden",
       }}
     >
-      {/* Top-right arrow */}
       <ArrowUpRight size={14} color="#8EBAA3" style={{ position: "absolute", top: 12, right: 12 }} />
-      {/* Background icon */}
-      <div style={{ position: "absolute", bottom: -8, right: -8, pointerEvents: "none", overflow: "hidden" }}>
-        <Icon size={64} color={iconColor} style={{ opacity: 0.08 }} />
-      </div>
-      {/* Icon */}
       <div style={{
         width: 44, height: 44, borderRadius: 14,
         background: `${iconColor}1F`,
@@ -254,15 +249,231 @@ function QuickActionCard({ icon: Icon, iconColor, label, subtitle, href, router 
       }}>
         <Icon size={22} color={iconColor} />
       </div>
-      {/* Title */}
       <span style={{ fontFamily: H, fontWeight: 600, fontSize: "0.8125rem", color: "#0B1F18", marginTop: 10, lineHeight: 1.3 }}>
         {label}
       </span>
-      {/* Subtitle */}
       <span style={{ fontFamily: B, fontSize: "0.6875rem", color: "#8EBAA3", marginTop: 2, lineHeight: 1.3 }}>
         {subtitle}
       </span>
     </motion.div>
+  );
+}
+
+/* ─── Daily Check-in Card ────────────────────────────────────────────────── */
+const MOODS = [
+  { id: "terrible", Icon: Frown,     color: "#EF4444", label: "Terrible" },
+  { id: "notgreat", Icon: Meh,       color: "#F97316", label: "Not great" },
+  { id: "okay",     Icon: Smile,     color: "#EAB308", label: "Okay" },
+  { id: "good",     Icon: SmilePlus, color: "#84CC16", label: "Good" },
+  { id: "great",    Icon: Sun,       color: "#0D6E4F", label: "Great" },
+];
+
+function DailyCheckin({ language }) {
+  const today = new Date().toDateString();
+  const [selected, setSelected] = useState(null);
+  const [done, setDone] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const checked = localStorage.getItem("zivika_checkin");
+      setVisible(checked !== today);
+    }
+  }, []);
+
+  function handleSelect(id) {
+    setSelected(id);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("zivika_checkin", today);
+      localStorage.setItem("zivika_mood", id);
+    }
+    setDone(true);
+    setTimeout(() => setVisible(false), 1500);
+  }
+
+  if (!visible) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: done ? 0 : 1, y: 0 }}
+      transition={{ duration: done ? 0.6 : 0.35 }}
+      style={{ background: "#fff", borderRadius: 16, padding: 16, border: "1px solid #DCE8E2", marginBottom: 20 }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <p style={{ fontFamily: H, fontWeight: 600, fontSize: "0.9375rem", color: "#0B1F18", margin: 0 }}>
+          {t("howAreYou", language)}
+        </p>
+        <span style={{ fontFamily: B, fontSize: "0.75rem", color: "#8EBAA3" }}>
+          {t("dailyCheckin", language)}
+        </span>
+      </div>
+      {done ? (
+        <p style={{ fontFamily: B, fontSize: "0.875rem", color: "#0D6E4F", fontWeight: 600, textAlign: "center", margin: "8px 0 0" }}>
+          {t("checkedIn", language)}
+        </p>
+      ) : (
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+          {MOODS.map(({ id, Icon, color, label }) => {
+            const active = selected === id;
+            return (
+              <button
+                key={id}
+                onClick={() => handleSelect(id)}
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+              >
+                <div style={{ width: 48, height: 48, borderRadius: "50%", background: `${color}1A`, border: active ? `2px solid ${color}` : "2px solid transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Icon size={22} color={color} />
+                </div>
+                <span style={{ fontFamily: B, fontSize: "0.6rem", color: active ? color : "#8EBAA3", fontWeight: active ? 700 : 400, lineHeight: 1.2, textAlign: "center" }}>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+/* ─── BMI Card ───────────────────────────────────────────────────────────── */
+function getBmiMeta(bmi) {
+  if (bmi < 18.5) return { label: "Underweight", color: "#2563EB", pct: Math.max(1, Math.round((bmi - 10) / 8.5 * 33)) };
+  if (bmi < 25)   return { label: "Healthy",     color: "#27AE60", pct: 33 + Math.round((bmi - 18.5) / 6.5 * 34) };
+  if (bmi < 30)   return { label: "Overweight",  color: "#F39C12", pct: 67 + Math.round((bmi - 25) / 5 * 16) };
+  return             { label: "Obese",        color: "#E74C3C", pct: Math.min(99, 83 + Math.round((bmi - 30) / 10 * 17)) };
+}
+
+const BMI_TIPS = {
+  Healthy:     "Great BMI! Keep up your lifestyle.",
+  Underweight: "Consider adding nutritious foods to your diet.",
+  Overweight:  "Small daily walks make a big difference.",
+  Obese:       "Talk to your doctor about a health plan.",
+};
+
+function BmiCard({ bmi, language, router }) {
+  if (!bmi) return null;
+  const meta = getBmiMeta(bmi);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35 }}
+      style={{ background: "#fff", borderRadius: 16, padding: 16, border: "1px solid #DCE8E2", marginBottom: 24 }}
+    >
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontFamily: B, fontSize: "0.75rem", color: "#8EBAA3", margin: 0 }}>{t("yourBmi", language)}</p>
+          <p style={{ fontFamily: H, fontWeight: 800, fontSize: "2.2rem", color: meta.color, margin: "4px 0 0", lineHeight: 1 }}>{bmi}</p>
+          <p style={{ fontFamily: B, fontSize: "0.8rem", color: meta.color, margin: "4px 0 0", fontWeight: 600 }}>{meta.label}</p>
+        </div>
+        <div style={{ paddingTop: 20 }}>
+          <div style={{ position: "relative", width: 100, height: 8, borderRadius: 6, background: "linear-gradient(90deg, #2563EB 0%, #27AE60 33%, #F39C12 67%, #E74C3C 100%)" }}>
+            <div style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", left: `calc(${Math.min(Math.max(meta.pct, 2), 97)}% - 6px)`, width: 12, height: 12, borderRadius: "50%", background: "#fff", border: `2.5px solid ${meta.color}`, boxShadow: "0 1px 4px rgba(0,0,0,0.18)" }} />
+          </div>
+        </div>
+      </div>
+      <p style={{ fontFamily: B, fontSize: "0.75rem", color: "#5A7A6E", margin: "12px 0 4px", lineHeight: 1.5 }}>
+        {BMI_TIPS[meta.label]}
+      </p>
+      <button
+        onClick={() => router.push("/setup")}
+        style={{ background: "none", border: "none", fontFamily: B, fontSize: "0.75rem", color: "#0D6E4F", cursor: "pointer", padding: 0, fontWeight: 600 }}
+      >
+        {t("recalculate", language)}
+      </button>
+    </motion.div>
+  );
+}
+
+/* ─── Health Streak Card ─────────────────────────────────────────────────── */
+function useStreak() {
+  const [streak, setStreak] = useState(0);
+  const [dots, setDots] = useState("0000000");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const today = new Date().toDateString();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const lastActive = localStorage.getItem("zivika_streak_last");
+    let count = parseInt(localStorage.getItem("zivika_streak_count") || "0");
+    let dotStr = localStorage.getItem("zivika_streak_dots") || "0000000";
+
+    if (lastActive !== today) {
+      if (lastActive === yesterday.toDateString()) {
+        count += 1;
+      } else {
+        count = 1;
+      }
+      dotStr = (dotStr.slice(1) + "1");
+      localStorage.setItem("zivika_streak_count", count);
+      localStorage.setItem("zivika_streak_last", today);
+      localStorage.setItem("zivika_streak_dots", dotStr);
+    }
+    setStreak(count);
+    setDots(dotStr);
+  }, []);
+
+  return { streak, dots };
+}
+
+function StreakCard({ language }) {
+  const { streak, dots } = useStreak();
+  if (streak === 0) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35 }}
+      style={{ background: "linear-gradient(135deg, #0D6E4F, #065F46)", borderRadius: 16, padding: 16, marginBottom: 24, display: "flex", alignItems: "center", gap: 14 }}
+    >
+      <div style={{ width: 44, height: 44, borderRadius: 14, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Flame size={22} color="#fff" />
+      </div>
+      <div style={{ flex: 1 }}>
+        <p style={{ fontFamily: H, fontWeight: 700, fontSize: "1.125rem", color: "#fff", margin: 0 }}>
+          {streak} {t("streak", language)}
+        </p>
+        <p style={{ fontFamily: B, fontSize: "0.75rem", color: "rgba(255,255,255,0.75)", margin: "3px 0 0" }}>
+          {t("keepItUp", language)}
+        </p>
+      </div>
+      <div style={{ display: "flex", gap: 5 }}>
+        {dots.split("").map((d, i) => (
+          <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: d === "1" ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.25)" }} />
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+/* ─── StepCountWidget ────────────────────────────────────────────────────── */
+function StepCountWidget() {
+  const [steps, setSteps] = useState(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const today = new Date().toDateString();
+    const stored = localStorage.getItem("zivika_steps_" + today);
+    if (stored) setSteps(parseInt(stored));
+  }, []);
+
+  if (steps === null) return null;
+
+  return (
+    <div style={{ background: "white", borderRadius: 14, padding: "12px 14px", border: "1px solid #DCE8E2", display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+      <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(13,110,79,0.10)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Footprints size={18} color="#0D6E4F" />
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 11, color: "#8EBAA3", fontFamily: B }}>Today&apos;s Steps</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "#0B1F18", fontFamily: H }}>{steps.toLocaleString("en-IN")}</div>
+      </div>
+      <div style={{ fontSize: 11, color: steps >= 8000 ? "#27AE60" : steps >= 5000 ? "#F39C12" : "#E74C3C", fontWeight: 600 }}>
+        {steps >= 8000 ? "Goal met!" : steps >= 5000 ? "Good" : "Keep going"}
+      </div>
+    </div>
   );
 }
 
@@ -287,15 +498,6 @@ const HEALTH_FACTS = [
   { icon: Moon,        color: "#4F46E5", text: "Adults need 7–9 hours of quality sleep" },
   { icon: Brain,       color: "#7C3AED", text: "Mental activity daily reduces cognitive decline" },
   { icon: Leaf,        color: "#16A34A", text: "Eat 5 servings of vegetables & fruits daily" },
-];
-
-const REFERENCE_RANGES = [
-  { label: "Heart Rate",     range: "60–100 bpm",      color: "#E74C3C", icon: Heart },
-  { label: "Blood Pressure", range: "< 120/80 mmHg",   color: "#9333EA", icon: Activity },
-  { label: "Blood Oxygen",   range: "95–100%",          color: "#2980B9", icon: Wind },
-  { label: "Temperature",    range: "97–99.5°F",        color: "#EA580C", icon: Thermometer },
-  { label: "Daily Steps",    range: "7,000–10,000",     color: "#0D9488", icon: Footprints },
-  { label: "Sleep",          range: "7–9 hours/night",  color: "#4F46E5", icon: Moon },
 ];
 
 function getGreetingGradient() {
@@ -364,7 +566,7 @@ function HealthTicker() {
 }
 
 /* ─── BreathingCard ──────────────────────────────────────────────────────── */
-function BreathingCard() {
+function BreathingCard({ language }) {
   const [isActive, setIsActive] = useState(false);
   const [phase, setPhase] = useState("idle");
   const [seconds, setSeconds] = useState(4);
@@ -430,10 +632,10 @@ function BreathingCard() {
       boxShadow: "0 4px 16px rgba(13,110,79,0.08)",
     }}>
       <h3 style={{ fontFamily: H, fontWeight: 600, fontSize: "0.875rem", color: "#0B1F18", margin: "0 0 2px" }}>
-        Breathing Exercise
+        {t("breathingTitle", language)}
       </h3>
       <p style={{ fontFamily: B, fontSize: "0.75rem", color: "#8EBAA3", margin: "0 0 20px" }}>
-        4 cycles · Box breathing technique
+        {t("breathingSubtitle", language)}
       </p>
       <div style={{
         width: 100, height: 100, borderRadius: "50%",
@@ -495,6 +697,7 @@ function BreathingCard() {
 /* ─── HOME PAGE ──────────────────────────────────────────────────────────── */
 export default function DashboardHome() {
   const router = useRouter();
+  const { language } = useLanguage();
   const user = useUserStore((s) => s.user);
   const vitalsReadings = useVitalsStore((s) => s.readings);
   const getLatestVitals = useVitalsStore((s) => s.getLatestVitals);
@@ -504,12 +707,12 @@ export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setLoading(false), 400);
+    return () => clearTimeout(timer);
   }, []);
 
-  const firstName = user?.firstName || user?.name?.split(" ")[0] || '';
-  const greeting = getHumanGreeting(firstName, medications);
+  const firstName = user?.firstName || user?.name?.split(" ")[0] || "";
+  const greeting = getHumanGreeting(firstName, medications, language);
   const { taken: takenCount, total: totalMeds } = getTodayAdherence();
 
   const homeVitals = useMemo(() => {
@@ -655,6 +858,17 @@ export default function DashboardHome() {
       </motion.div>
 
       {/* ════════════════════════════════════════════════════════ */}
+      {/* SECTION 3: Daily Check-in                             */}
+      {/* ════════════════════════════════════════════════════════ */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut", delay: 0.12 }}
+      >
+        <DailyCheckin language={language} />
+      </motion.div>
+
+      {/* ════════════════════════════════════════════════════════ */}
       {/* WELCOME BANNER — new users only                        */}
       {/* ════════════════════════════════════════════════════════ */}
       {isNewUser && (
@@ -675,18 +889,18 @@ export default function DashboardHome() {
         >
           <div style={{
             width: 40, height: 40, borderRadius: 10,
-            background: "rgba(37,99,235,0.08)",
+            background: "rgba(13,110,79,0.08)",
             display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0,
           }}>
-            <Sparkles size={20} color="#2563EB" />
+            <HeartPulse size={20} color="#0D6E4F" />
           </div>
           <div style={{ flex: 1 }}>
             <p style={{ fontFamily: H, fontWeight: 600, fontSize: "0.875rem", color: "#0B1F18", margin: 0 }}>
-              Welcome to Zivika Labs!
+              {t("welcomeTitle", language)}
             </p>
             <p style={{ fontFamily: B, fontSize: "0.75rem", color: "#5A7A6E", margin: "3px 0 0", lineHeight: 1.4 }}>
-              Start by scanning your first medical report. Your AI health journey begins now.
+              {t("welcomeSubtitle", language)}
             </p>
           </div>
           <button
@@ -705,13 +919,33 @@ export default function DashboardHome() {
               whiteSpace: "nowrap",
             }}
           >
-            Start →
+            {t("startButton", language)}
           </button>
         </motion.div>
       )}
 
       {/* ════════════════════════════════════════════════════════ */}
-      {/* SECTION 4: Your Vitals                                */}
+      {/* SECTION 5: Quick Actions (2×3)                        */}
+      {/* ════════════════════════════════════════════════════════ */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut", delay: 0.20 }}
+        style={{ marginBottom: 24 }}
+      >
+        <SectionHeader title={t("quickActions", language)} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <QuickActionCard icon={Camera}        iconColor="#0D6E4F" label={t("scanReport", language)}    subtitle={t("scanSubtitle", language)}    href="/dashboard/scan"     router={router} />
+          <QuickActionCard icon={MessageCircle} iconColor="#2563EB" label={t("askCopilot", language)}    subtitle={t("copilotSubtitle", language)}  href="/dashboard/copilot"  router={router} />
+          <QuickActionCard icon={ClipboardList} iconColor="#F39C12" label={t("checkSymptoms", language)} subtitle={t("symptomsSubtitle", language)} href="/dashboard/symptoms" router={router} />
+          <QuickActionCard icon={Rss}           iconColor="#7C3AED" label={t("healthFeed", language)}    subtitle={t("feedSubtitle", language)}     href="/dashboard/feed"     router={router} />
+          <QuickActionCard icon={Users}         iconColor="#0891B2" label={t("familyHealth", language)}  subtitle={t("familySubtitle", language)}   href="/dashboard/family"   router={router} />
+          <QuickActionCard icon={Pill}          iconColor="#27AE60" label={t("medications", language)}   subtitle={t("medsSubtitle", language)}     href="/dashboard/medications" router={router} />
+        </div>
+      </motion.div>
+
+      {/* ════════════════════════════════════════════════════════ */}
+      {/* SECTION 6: Your Vitals                                */}
       {/* ════════════════════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
@@ -720,70 +954,48 @@ export default function DashboardHome() {
         style={{ marginBottom: 24 }}
       >
         <SectionHeader
-          title="Your Vitals"
-          actionLabel="See All"
+          title={t("yourVitals", language)}
+          actionLabel={t("seeAll", language)}
           onAction={() => router.push("/dashboard/vitals")}
         />
         {homeVitals.length === 0 ? (
-          <div>
-            <p style={{ fontFamily: B, fontSize: "0.75rem", color: "#8EBAA3", margin: "0 0 12px" }}>
-              Know your healthy ranges — log your first reading to get started.
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-              {REFERENCE_RANGES.map(({ label, range, color, icon: RIcon }) => (
-                <div key={label} style={{
-                  backgroundColor: "#fff",
-                  border: "1px solid #DCE8E2",
-                  borderLeft: `3px solid ${color}`,
-                  borderRadius: 12,
-                  padding: "14px 10px",
-                  display: "flex", alignItems: "center", gap: 10,
-                }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 8,
-                    background: `${color}1E`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0,
-                  }}>
-                    <RIcon size={16} color={color} />
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <p style={{ fontFamily: B, fontSize: "0.6875rem", color: "#5A7A6E", margin: 0 }}>
-                      {label}
-                    </p>
-                    <p style={{ fontFamily: H, fontWeight: 700, fontSize: "0.9375rem", color: "#0B1F18", margin: "2px 0 0", lineHeight: 1.2 }}>
-                      {range}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={() => router.push("/dashboard/vitals")}
-              style={{
-                width: "100%",
-                background: "none",
-                border: "1.5px dashed #8EBAA3",
-                borderRadius: 12,
-                padding: "12px 0",
-                fontFamily: B, fontWeight: 600, fontSize: "0.8125rem",
-                color: "#0D6E4F", cursor: "pointer",
-              }}
-            >
-              Log Your First Reading →
-            </button>
+          <div style={{ backgroundColor: "#fff", border: "1px solid #DCE8E2", borderRadius: 16, padding: "20px 16px" }}>
+            <EmptyState
+              icon={Activity}
+              iconColor="#0D6E4F"
+              title={t("noVitals", language)}
+              description="Log your heart rate, blood pressure, steps and more to track your health trends."
+              ctaLabel={t("logFirstReading", language)}
+              onCta={() => router.push("/dashboard/vitals")}
+            />
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-            {homeVitals.map(({ key, ...rest }) => (
-              <VitalCard key={key} {...rest} />
-            ))}
-          </div>
+          <>
+            <StepCountWidget />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              {homeVitals.map(({ key, ...rest }) => (
+                <VitalCard key={key} {...rest} />
+              ))}
+            </div>
+          </>
         )}
       </motion.div>
 
       {/* ════════════════════════════════════════════════════════ */}
-      {/* SECTION 5: Health Score Preview                       */}
+      {/* SECTION 7: BMI Card                                   */}
+      {/* ════════════════════════════════════════════════════════ */}
+      {user?.bmi && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: "easeOut", delay: 0.28 }}
+        >
+          <BmiCard bmi={user.bmi} language={language} router={router} />
+        </motion.div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════ */}
+      {/* SECTION 8: Health Score Preview                       */}
       {/* ════════════════════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
@@ -819,7 +1031,7 @@ export default function DashboardHome() {
             </div>
             <div style={{ flex: 1 }}>
               <p style={{ fontFamily: H, fontWeight: 600, fontSize: "0.875rem", color: "#0B1F18", margin: 0 }}>
-                Your Health Score
+                {t("healthScore", language)}
               </p>
               <p style={{ fontFamily: B, fontSize: "0.75rem", color: "#0D6E4F", margin: "2px 0 0" }}>
                 View your Digital Twin →
@@ -845,7 +1057,7 @@ export default function DashboardHome() {
               </div>
               <div>
                 <p style={{ fontFamily: H, fontWeight: 600, fontSize: "0.875rem", color: "#0B1F18", margin: 0 }}>
-                  Build Your Health Score
+                  {t("buildScore", language)}
                 </p>
                 <p style={{ fontFamily: B, fontSize: "0.6875rem", color: "#8EBAA3", margin: "1px 0 0" }}>
                   3 steps to unlock your digital twin
@@ -907,7 +1119,7 @@ export default function DashboardHome() {
       </motion.div>
 
       {/* ════════════════════════════════════════════════════════ */}
-      {/* SECTION 6: Today's Medications                        */}
+      {/* SECTION 9: Today's Medications                        */}
       {/* ════════════════════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
@@ -916,8 +1128,8 @@ export default function DashboardHome() {
         style={{ marginBottom: 24 }}
       >
         <SectionHeader
-          title="Today's Medications"
-          actionLabel="See All"
+          title={t("todaysMedications", language)}
+          actionLabel={t("seeAll", language)}
           onAction={() => router.push("/dashboard/medications")}
         />
         {medications.length === 0 ? (
@@ -925,9 +1137,9 @@ export default function DashboardHome() {
             <EmptyState
               icon={Pill}
               iconColor="#0D6E4F"
-              title="No medications added"
+              title={t("noMedications", language)}
               description="Add your daily medications to get smart reminders and track your adherence streak."
-              ctaLabel="Add Medication"
+              ctaLabel={t("addMedication", language)}
               onCta={() => router.push("/dashboard/medications")}
             />
           </div>
@@ -941,33 +1153,26 @@ export default function DashboardHome() {
       </motion.div>
 
       {/* ════════════════════════════════════════════════════════ */}
-      {/* SECTION 7: Quick Actions (2×2)                        */}
+      {/* SECTION 10: Health Streak                             */}
       {/* ════════════════════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: "easeOut", delay: 0.48 }}
-        style={{ marginBottom: 24 }}
       >
-        <SectionHeader title="Quick Actions" />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <QuickActionCard icon={Camera}        iconColor="#0D6E4F" label="Scan Report"    subtitle="Digitize any report"   href="/dashboard/scan"     router={router} />
-          <QuickActionCard icon={MessageCircle} iconColor="#2563EB" label="Ask Copilot"    subtitle="AI health assistant"   href="/dashboard/copilot"  router={router} />
-          <QuickActionCard icon={ClipboardList} iconColor="#F39C12" label="Check Symptoms" subtitle="Understand your body"  href="/dashboard/symptoms" router={router} />
-          <QuickActionCard icon={Rss}           iconColor="#7C3AED" label="Health Feed"    subtitle="Tips from doctors"     href="/dashboard/feed"     router={router} />
-        </div>
+        <StreakCard language={language} />
       </motion.div>
 
       {/* ════════════════════════════════════════════════════════ */}
-      {/* SECTION 8: Breathing Exercise                         */}
+      {/* SECTION 11: Breathing Exercise                        */}
       {/* ════════════════════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: "easeOut", delay: 0.56 }}
       >
-        <SectionHeader title="Breathing Exercise" />
-        <BreathingCard />
+        <SectionHeader title={t("breathingTitle", language)} />
+        <BreathingCard language={language} />
       </motion.div>
     </div>
   );

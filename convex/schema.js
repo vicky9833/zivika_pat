@@ -22,6 +22,7 @@ export default defineSchema({
     ecRelation:        v.optional(v.string()),
     profileComplete:   v.optional(v.boolean()),
     onboarded:         v.optional(v.boolean()),
+    profilePhotoStorageId: v.optional(v.string()),
     createdAt:         v.number(),
   }).index("by_clerk_id", ["clerkId"]),
 

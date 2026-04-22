@@ -12,6 +12,7 @@ import type * as ai from "../ai.js";
 import type * as chat from "../chat.js";
 import type * as family from "../family.js";
 import type * as http from "../http.js";
+import type * as lib from "../lib.js";
 import type * as medications from "../medications.js";
 import type * as notifications from "../notifications.js";
 import type * as records from "../records.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   chat: typeof chat;
   family: typeof family;
   http: typeof http;
+  lib: typeof lib;
   medications: typeof medications;
   notifications: typeof notifications;
   records: typeof records;

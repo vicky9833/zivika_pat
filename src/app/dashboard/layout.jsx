@@ -10,13 +10,15 @@ import ToastContainer from "@/components/ui/Toast";
 import GlobalSearch from "@/components/shared/GlobalSearch";
 import { useUserStore } from "@/lib/stores/user-store";
 import { useConvexUser } from "@/lib/hooks/useConvexUser";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { t } from "@/lib/translations";
 
-const NAV_ITEMS = [
-  { href: "/dashboard", label: "Home", icon: Home },
-  { href: "/dashboard/twin", label: "Twin", icon: Activity },
-  { href: "/dashboard/scan", label: "Scan", icon: ScanLine, isFab: true },
-  { href: "/dashboard/locker", label: "Locker", icon: FolderHeart },
-  { href: "/dashboard/feed", label: "Feed", icon: Rss },
+const NAV_ITEM_DEFS = [
+  { href: "/dashboard", labelKey: "home", icon: Home },
+  { href: "/dashboard/twin", labelKey: "twin", icon: Activity },
+  { href: "/dashboard/scan", labelKey: "scan", icon: ScanLine, isFab: true },
+  { href: "/dashboard/locker", labelKey: "locker", icon: FolderHeart },
+  { href: "/dashboard/feed", labelKey: "feed", icon: Rss },
 ];
 
 export default function DashboardLayout({ children }) {
@@ -24,8 +26,14 @@ export default function DashboardLayout({ children }) {
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
   const user = useUserStore((s) => s.user);
+  const { language } = useLanguage();
   // Sync Convex user data into Zustand on every dashboard visit
   useConvexUser();
+
+  const NAV_ITEMS = NAV_ITEM_DEFS.map((item) => ({
+    ...item,
+    label: t(item.labelKey, language),
+  }));
 
   return (
     <div

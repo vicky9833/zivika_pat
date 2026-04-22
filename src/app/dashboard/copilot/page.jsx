@@ -102,16 +102,20 @@ function CopilotPageInner() {
 
   // Build a plain-language health context string for Groq
   const healthContextString = useMemo(() => {
+    const u = convexUser || user;
     const contextParts = [
-      user?.name         && `Patient: ${user.name}`,
-      user?.bloodGroup   && `Blood group: ${user.bloodGroup}`,
-      user?.conditions?.length > 0 && `Conditions: ${user.conditions.join(", ")}`,
-      user?.bmi          && `BMI: ${user.bmi} (${user.bmiCategory})`,
-      records?.length > 0          && `Has ${records.length} health records on file`,
-      medications?.length > 0      && `Current medications: ${medications.map((m) => m.name).join(", ")}`,
+      (u?.name || user?.name)           && `Patient: ${u?.name || user?.name}`,
+      (u?.bloodGroup || user?.bloodGroup) && `Blood group: ${u?.bloodGroup || user?.bloodGroup}`,
+      (u?.conditions?.length > 0)       && `Conditions: ${u.conditions.join(", ")}`,
+      (!u?.conditions?.length && user?.conditions?.length > 0) && `Conditions: ${user.conditions.join(", ")}`,
+      (u?.bmi || user?.bmi)             && `BMI: ${u?.bmi || user?.bmi}`,
+      (u?.healthGoal || user?.healthGoal) && `Health goal: ${u?.healthGoal || user?.healthGoal}`,
+      (u?.nativeLanguage || user?.nativeLanguage) && `Preferred language: ${u?.nativeLanguage || user?.nativeLanguage}`,
+      records?.length > 0               && `Has ${records.length} health records on file`,
+      medications?.length > 0           && `Current medications: ${medications.map((m) => m.name).join(", ")}`,
     ].filter(Boolean);
     return contextParts.join(". ");
-  }, [user, medications, records]);
+  }, [convexUser, user, medications, records]);
 
   // Inject context message when navigating from a record page
   useEffect(() => {

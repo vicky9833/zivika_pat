@@ -21,6 +21,8 @@ import {
   Users,
   Brain,
   Globe,
+  Droplets,
+  Sparkles,
 } from "lucide-react";
 import ZivikaLogo from "@/components/shared/ZivikaLogo";
 import { useUserStore } from "@/lib/stores/user-store";
@@ -59,12 +61,62 @@ const RELATIONSHIPS = [
 ];
 
 const HEALTH_GOALS = [
-  { id: "weight_loss",       label: "Lose Weight",        Icon: TrendingDown, color: "#D97706" },
-  { id: "fitness",          label: "Get Fitter",         Icon: Zap,          color: "#2563EB" },
-  { id: "manage_condition", label: "Manage Condition",   Icon: Activity,     color: "#DC2626" },
-  { id: "family_health",    label: "Family Health",      Icon: Users,        color: "#7C3AED" },
-  { id: "mental_wellness",  label: "Mental Wellness",    Icon: Brain,        color: "#0891B2" },
-  { id: "general",          label: "General Wellness",   Icon: Heart,        color: "#0D6E4F" },
+  {
+    id: "manage_diabetes",
+    Icon: Droplets,
+    color: "#2563EB",
+    label: "Manage Diabetes",
+    subtitle: "Track sugar, HbA1c, medications",
+  },
+  {
+    id: "manage_bp",
+    Icon: Activity,
+    color: "#E74C3C",
+    label: "Control Blood Pressure",
+    subtitle: "Monitor BP daily, reduce risk",
+  },
+  {
+    id: "lose_weight",
+    Icon: TrendingDown,
+    color: "#F39C12",
+    label: "Lose Weight",
+    subtitle: "BMI tracking, diet insights",
+  },
+  {
+    id: "track_reports",
+    Icon: FileText,
+    color: "#0D6E4F",
+    label: "Digitize My Reports",
+    subtitle: "Store all reports in one place",
+  },
+  {
+    id: "family_health",
+    Icon: Users,
+    color: "#7C3AED",
+    label: "Family Health",
+    subtitle: "Manage health for my family",
+  },
+  {
+    id: "heart_health",
+    Icon: Heart,
+    color: "#E74C3C",
+    label: "Heart Health",
+    subtitle: "ECG, cholesterol, fitness",
+  },
+  {
+    id: "thyroid_hormones",
+    Icon: Zap,
+    color: "#0891B2",
+    label: "Thyroid & Hormones",
+    subtitle: "TSH tracking and insights",
+  },
+  {
+    id: "general_wellness",
+    Icon: Sparkles,
+    color: "#27AE60",
+    label: "General Wellness",
+    subtitle: "Stay healthy every day",
+  },
 ];
 
 const LANGUAGES = [
@@ -957,8 +1009,8 @@ function Step4HealthGoal({ healthGoal, setHealthGoal }) {
   return (
     <div style={{ paddingBottom: 16 }}>
       <StepHeading
-        title="What's your main goal?"
-        subtitle="We'll personalise your recommendations around it"
+        title="What brings you to Zivika Labs?"
+        subtitle="We'll personalise your health journey"
       />
       <div
         style={{
@@ -968,7 +1020,7 @@ function Step4HealthGoal({ healthGoal, setHealthGoal }) {
           marginTop: 8,
         }}
       >
-        {HEALTH_GOALS.map(({ id, label, Icon, color }) => {
+        {HEALTH_GOALS.map(({ id, label, subtitle, Icon, color }) => {
           const active = healthGoal === id;
           return (
             <motion.button
@@ -976,41 +1028,51 @@ function Step4HealthGoal({ healthGoal, setHealthGoal }) {
               whileTap={{ scale: 0.94 }}
               onClick={() => setHealthGoal(id)}
               style={{
-                padding: "16px 12px",
+                padding: "14px 12px",
                 borderRadius: 14,
                 border: `2px solid ${active ? color : "#DCE8E2"}`,
                 background: active ? `${color}12` : "#F8FBFA",
                 cursor: "pointer",
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "center",
-                gap: 8,
+                alignItems: "flex-start",
+                gap: 6,
+                textAlign: "left",
               }}
             >
               <div
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
                   background: active ? `${color}20` : "#F0F7F4",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Icon size={20} color={active ? color : "#8EBAA3"} />
+                <Icon size={18} color={active ? color : "#8EBAA3"} />
               </div>
               <span
                 style={{
-                  fontFamily: B,
-                  fontWeight: active ? 700 : 500,
-                  fontSize: "0.82rem",
-                  color: active ? color : "#5A7A6E",
-                  textAlign: "center",
+                  fontFamily: H,
+                  fontWeight: active ? 700 : 600,
+                  fontSize: "0.8rem",
+                  color: active ? color : "#0B1F18",
                   lineHeight: 1.3,
                 }}
               >
                 {label}
+              </span>
+              <span
+                style={{
+                  fontFamily: B,
+                  fontSize: "0.7rem",
+                  color: active ? `${color}CC` : "#8EBAA3",
+                  lineHeight: 1.4,
+                }}
+              >
+                {subtitle}
               </span>
             </motion.button>
           );

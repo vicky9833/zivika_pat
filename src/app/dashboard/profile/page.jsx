@@ -1,10 +1,10 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useClerk } from "@clerk/nextjs";
+import { useClerk, useUser } from "@clerk/nextjs";
 import { useUserStore } from "@/lib/stores/user-store";
 import { useVitalsStore } from "@/lib/stores/vitals-store";
 import { useMedicationsStore } from "@/lib/stores/medications-store";
@@ -14,8 +14,10 @@ import AppSettings from "@/components/profile/AppSettings";
 import EmergencySOS from "@/components/shared/EmergencySOS";
 import HealthSummaryModal from "@/components/shared/HealthSummaryModal";
 import { toast } from "@/components/ui/Toast";
-import { AlertTriangle, Download, UserRound } from "lucide-react";
+import { AlertTriangle, Download, UserRound, Camera } from "lucide-react";
 import { useRecordsStore } from "@/lib/stores/records-store";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
 
 const H = "var(--font-outfit, 'Outfit', sans-serif)";
 const B = "var(--font-dm-sans, 'DM Sans', sans-serif)";
@@ -23,6 +25,7 @@ const B = "var(--font-dm-sans, 'DM Sans', sans-serif)";
 export default function ProfilePage() {
   const router = useRouter();
   const { signOut } = useClerk();
+  const { user: clerkUser } = useUser();
   const user = useUserStore((s) => s.user);
   const records = useRecordsStore((s) => s.records);
   const vitalsReadings = useVitalsStore((s) => s.readings);
@@ -32,7 +35,72 @@ export default function ProfilePage() {
   const [sosOpen, setSosOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  useEffect(() => { const t = setTimeout(() => setLoading(false), 400); return () => clearTimeout(t); }, []);
+  const [photoStorageId, setPhotoStorageId] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const generateUploadUrl = useMutation(api.users.generateUploadUrl);
+  const updateProfilePhoto = useMutation(api.users.updateProfilePhoto);
+  const photoUrl = useQuery(
+    api.users.getPhotoUrl,
+    photoStorageId ? { storageId: photoStorageId } : "skip"
+  );
+
+  useEffect(() => { const timer = setTimeout(() => setLoading(false), 400); return () => clearTimeout(timer); }, []);
+
+  async function handlePhotoChange(e) {
+    const file = e.target.files?.[0];
+    if (!file || !clerkUser) return;
+    try {
+      setUploading(true);
+      // Compress to ≤500KB via canvas
+      const compressed = await compressImage(file, 500 * 1024);
+      const uploadUrl = await generateUploadUrl();
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": compressed.type },
+        body: compressed,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const { storageId } = await res.json();
+      await updateProfilePhoto({ clerkId: clerkUser.id, photoStorageId: storageId });
+      setPhotoStorageId(storageId);
+      toast("Profile photo updated!", "success");
+    } catch (err) {
+      console.error(err);
+      toast("Photo upload failed. Please try again.", "error");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function compressImage(file, maxBytes) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        let { width, height } = img;
+        const canvas = document.createElement("canvas");
+        let quality = 0.85;
+        // Scale down if needed
+        const maxDim = 800;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = Math.round((height * maxDim) / width); width = maxDim; }
+          else { width = Math.round((width * maxDim) / height); height = maxDim; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(
+          (blob) => resolve(blob || file),
+          "image/jpeg",
+          quality
+        );
+      };
+      img.src = url;
+    });
+  }
 
   async function handleLogout() {
     localStorage.removeItem("zivika_onboarded");
@@ -136,7 +204,7 @@ export default function ProfilePage() {
             backgroundSize: "24px 24px", pointerEvents: "none",
           }} />
 
-          {/* Avatar */}
+          {/* Avatar — tappable for photo upload */}
           <div
             style={{
               width: 72,
@@ -149,11 +217,34 @@ export default function ProfilePage() {
               justifyContent: "center",
               marginBottom: 14,
               position: "relative",
+              cursor: "pointer",
+              overflow: "hidden",
             }}
+            onClick={() => fileInputRef.current?.click()}
           >
-            {user.initials
-              ? <span style={{ fontFamily: H, fontWeight: 700, fontSize: "1.625rem", color: "#fff" }}>{user.initials}</span>
-              : <UserRound size={32} color="#fff" />}
+            {photoUrl ? (
+              <img src={photoUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : user.initials ? (
+              <span style={{ fontFamily: H, fontWeight: 700, fontSize: "1.625rem", color: "#fff" }}>{user.initials}</span>
+            ) : (
+              <UserRound size={32} color="#fff" />
+            )}
+            {/* Camera badge */}
+            <div style={{ position: "absolute", bottom: 0, right: 0, width: 22, height: 22, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid #0D6E4F" }}>
+              {uploading ? (
+                <div style={{ width: 10, height: 10, borderRadius: "50%", border: "2px solid #0D6E4F", borderTopColor: "transparent", animation: "spin 0.7s linear infinite" }} />
+              ) : (
+                <Camera size={12} color="#0D6E4F" />
+              )}
+            </div>
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={handlePhotoChange}
+            />
           </div>
 
           <h2 style={{ fontFamily: H, fontWeight: 700, fontSize: "1.25rem", color: "#fff", margin: "0 0 4px", position: "relative" }}>
