@@ -6,12 +6,15 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft, ChevronRight, AlertTriangle, Stethoscope,
-  CheckCircle, MessageCircle, Calendar, Info,
+  CheckCircle, MessageCircle, Calendar, Info, Loader,
 } from "lucide-react";
 import {
   BODY_REGIONS, SYMPTOM_MAP, DURATION_OPTIONS,
   SEVERITY_OPTIONS, analyzeSymptoms,
 } from "@/lib/symptom-checker";
+import { useAction } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import { useConvexUser } from "@/lib/hooks/useConvexUser";
 import { toast } from "@/components/ui/Toast";
 
 const H = "var(--font-outfit, 'Outfit', sans-serif)";
@@ -21,6 +24,8 @@ const STEPS = ["Where it bothers you", "What you're feeling", "How long it's bee
 
 export default function SymptomsPage() {
   const router = useRouter();
+  const { convexUser } = useConvexUser();
+  const analyzeWithAI = useAction(api.ai.analyzeSymptoms);
 
   const [step, setStep] = useState(0);
   const [selectedRegions, setSelectedRegions] = useState([]);
@@ -29,6 +34,7 @@ export default function SymptomsPage() {
   const [duration, setDuration] = useState(null);
   const [severity, setSeverity] = useState(null);
   const [result, setResult] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   // ── Derived symptom list from selected regions ──────────────────────────
   const availableSymptoms = [
@@ -48,17 +54,33 @@ export default function SymptomsPage() {
     return false;
   }
 
-  function handleNext() {
+  async function handleNext() {
     if (step === 3) {
       const allSymptoms = [...selectedSymptoms, ...(otherSymptom.trim() ? [otherSymptom.trim()] : [])];
-      const analysis = analyzeSymptoms({
-        regions: selectedRegions,
-        symptoms: allSymptoms,
-        duration,
-        severity,
-      });
-      setResult(analysis);
-      setStep(4);
+      setAnalyzing(true);
+      try {
+        const age = convexUser?.dob
+          ? new Date().getFullYear() - new Date(convexUser.dob).getFullYear()
+          : undefined;
+        const aiResult = await analyzeWithAI({
+          symptoms: allSymptoms,
+          duration,
+          severity,
+          age,
+          gender: convexUser?.gender,
+          existingConditions: convexUser?.conditions || [],
+          language: convexUser?.nativeLanguage || "en",
+        });
+        setResult(aiResult);
+        setStep(4);
+      } catch {
+        // fallback to rule-based
+        const analysis = analyzeSymptoms({ regions: selectedRegions, symptoms: allSymptoms, duration, severity });
+        setResult({ urgency: analysis.urgency, message: analysis.urgencyMeta?.label || "Please consult a doctor.", isEmergency: false, _legacy: analysis });
+        setStep(4);
+      } finally {
+        setAnalyzing(false);
+      }
     } else {
       setStep((s) => s + 1);
     }
@@ -300,12 +322,7 @@ export default function SymptomsPage() {
               </p>
 
               {/* Symptom summary */}
-              <div
-                style={{
-                  background: "#fff", border: "1px solid #DCE8E2",
-                  borderRadius: 14, padding: "16px", marginBottom: 14,
-                }}
-              >
+              <div style={{ background: "#fff", border: "1px solid #DCE8E2", borderRadius: 14, padding: "16px", marginBottom: 14 }}>
                 <p style={{ fontFamily: H, fontWeight: 700, fontSize: "0.88rem", color: "#0B1F18", margin: "0 0 10px" }}>
                   Symptoms reported:
                 </p>
@@ -320,71 +337,35 @@ export default function SymptomsPage() {
                 </div>
               </div>
 
-              {/* Urgency */}
-              <div
-                style={{
-                  background: result.urgencyMeta.bg,
-                  border: `1.5px solid ${result.urgencyMeta.color}30`,
-                  borderRadius: 14, padding: "14px 16px",
-                  marginBottom: 14,
-                  display: "flex", alignItems: "center", gap: 10,
-                }}
-              >
-                <AlertTriangle size={20} color={result.urgencyMeta.color} />
-                <div>
-                  <p style={{ fontFamily: H, fontWeight: 700, fontSize: "0.88rem", color: result.urgencyMeta.color, margin: "0 0 2px" }}>
-                    Urgency
-                  </p>
-                  <p style={{ fontFamily: B, fontSize: "0.82rem", color: "#0B1F18", margin: 0 }}>
-                    {result.urgencyMeta.label}
-                  </p>
-                </div>
-              </div>
-
-              {/* Possible conditions */}
-              <div
-                style={{
-                  background: "#fff", border: "1px solid #DCE8E2",
-                  borderRadius: 14, padding: "16px", marginBottom: 14,
-                }}
-              >
-                <p style={{ fontFamily: H, fontWeight: 700, fontSize: "0.88rem", color: "#0B1F18", margin: "0 0 12px" }}>
-                  Possible conditions
-                </p>
-                {result.conditions.map((c) => (
-                  <div key={c.name} style={{ marginBottom: 10 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                      <span style={{ fontFamily: B, fontWeight: 600, fontSize: "0.85rem", color: "#0B1F18" }}>{c.name}</span>
-                      <span style={{ fontFamily: H, fontWeight: 700, fontSize: "0.85rem", color: c.likelihood >= 40 ? "#E74C3C" : "#F39C12" }}>
-                        {c.likelihood}%
-                      </span>
-                    </div>
-                    <div style={{ height: 5, background: "#F0F7F4", borderRadius: 3 }}>
-                      <div style={{ height: "100%", width: `${c.likelihood}%`, background: c.likelihood >= 40 ? "#E74C3C" : "#F39C12", borderRadius: 3 }} />
+              {/* Urgency badge */}
+              {(() => {
+                const urgencyMap = {
+                  emergency: { bg: "rgba(231,76,60,0.08)", color: "#E74C3C", label: "Seek emergency care immediately" },
+                  urgent:    { bg: "rgba(243,156,18,0.08)", color: "#F39C12", label: "See a doctor within 24 hours" },
+                  routine:   { bg: "rgba(13,110,79,0.06)",  color: "#0D6E4F", label: "Schedule a routine consultation" },
+                };
+                const meta = urgencyMap[result.urgency] || urgencyMap.routine;
+                return (
+                  <div style={{
+                    background: meta.bg, border: `1.5px solid ${meta.color}30`,
+                    borderRadius: 14, padding: "14px 16px", marginBottom: 14,
+                    display: "flex", alignItems: "center", gap: 10,
+                  }}>
+                    <AlertTriangle size={20} color={meta.color} />
+                    <div>
+                      <p style={{ fontFamily: H, fontWeight: 700, fontSize: "0.88rem", color: meta.color, margin: "0 0 2px" }}>Urgency</p>
+                      <p style={{ fontFamily: B, fontSize: "0.82rem", color: "#0B1F18", margin: 0 }}>{meta.label}</p>
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })()}
 
-              {/* Specialist */}
-              <div
-                style={{
-                  background: "rgba(13,110,79,0.05)",
-                  border: "1px solid rgba(13,110,79,0.15)",
-                  borderRadius: 14, padding: "14px 16px",
-                  display: "flex", alignItems: "center", gap: 10,
-                  marginBottom: 16,
-                }}
-              >
-                <Stethoscope size={18} color="#0D6E4F" />
-                <div>
-                  <p style={{ fontFamily: B, fontSize: "0.75rem", color: "#8EBAA3", margin: "0 0 2px" }}>
-                    Recommended specialist
-                  </p>
-                  <p style={{ fontFamily: H, fontWeight: 700, fontSize: "0.9rem", color: "#0D6E4F", margin: 0 }}>
-                    {result.specialist}
-                  </p>
-                </div>
+              {/* AI Analysis */}
+              <div style={{ background: "#fff", border: "1px solid #DCE8E2", borderRadius: 14, padding: "16px", marginBottom: 16 }}>
+                <p style={{ fontFamily: H, fontWeight: 700, fontSize: "0.88rem", color: "#0B1F18", margin: "0 0 10px" }}>AI Assessment</p>
+                {result.message.split("\n").filter(Boolean).map((line, i) => (
+                  <p key={i} style={{ fontFamily: B, fontSize: "0.84rem", color: "#2C3E50", margin: "0 0 8px", lineHeight: 1.65 }}>{line}</p>
+                ))}
               </div>
 
               {/* Action buttons */}
@@ -455,16 +436,16 @@ export default function SymptomsPage() {
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={handleNext}
-            disabled={!canNext()}
+            disabled={!canNext() || analyzing}
             style={{
               width: "100%",
               padding: "15px",
               borderRadius: 14,
               border: "none",
-              background: canNext()
+              background: canNext() && !analyzing
                 ? "linear-gradient(135deg, #0D6E4F, #00C9A7)"
                 : "#DCE8E2",
-              color: canNext() ? "#fff" : "#B8D4C5",
+              color: canNext() && !analyzing ? "#fff" : "#B8D4C5",
               fontFamily: H,
               fontWeight: 700,
               fontSize: "0.95rem",
@@ -476,8 +457,10 @@ export default function SymptomsPage() {
               transition: "background 0.2s",
             }}
           >
-            {step === 3 ? "Analyze Symptoms" : "Continue"}
-            <ChevronRight size={16} />
+            {analyzing ? (
+              <><Loader size={16} style={{ animation: "spin 1s linear infinite" }} /> Analyzing...</>
+            ) : step === 3 ? "Analyze Symptoms" : "Continue"}
+            {!analyzing && <ChevronRight size={16} />}
           </motion.button>
         </div>
       )}

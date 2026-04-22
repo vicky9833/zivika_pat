@@ -6,12 +6,16 @@ import { useRouter } from "next/navigation";
 import {
   Stethoscope, ShieldCheck, AlertTriangle, Download,
   Heart, Activity, Moon, ChevronLeft, Leaf,
+  CheckCircle, TrendingUp, Droplets, Flame,
 } from "lucide-react";
 import { useRecordsStore } from "@/lib/stores/records-store";
 import { useUserStore } from "@/lib/stores/user-store";
 import { useVitalsStore } from "@/lib/stores/vitals-store";
 import { useMedicationsStore } from "@/lib/stores/medications-store";
 import { computeTwinScores, TWIN_TIMELINE } from "@/lib/twin-engine";
+import { useAction } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import { useConvexUser } from "@/lib/hooks/useConvexUser";
 import HealthScoreRing from "@/components/twin/HealthScoreRing";
 import ScoreBreakdown from "@/components/twin/ScoreBreakdown";
 import HealthTimeline from "@/components/twin/HealthTimeline";
@@ -61,7 +65,7 @@ function SectionHeader({ title, badge, icon: Icon, iconColor }) {
 }
 
 // ─── Insight card ─────────────────────────────────────────────────────────────
-const TWIN_ICON_MAP = { Heart, Activity, Moon };
+const TWIN_ICON_MAP = { Heart, Activity, Moon, CheckCircle, TrendingUp, AlertTriangle, Droplets, Flame, Stethoscope };
 
 function InsightCard({ insight }) {
   const IIcon = TWIN_ICON_MAP[insight.iconName] || Activity;
@@ -150,6 +154,7 @@ function ComingSoonCard({ icon: Icon, title, description }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function TwinPage() {
   const router = useRouter();
+  const { convexUser } = useConvexUser();
   const records = useRecordsStore((s) => s.records);
   const user = useUserStore((s) => s.user);
   const vitalsReadings = useVitalsStore((s) => s.readings);
@@ -158,23 +163,26 @@ export default function TwinPage() {
   const { medications } = useMedicationsStore();
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [aiInsights, setAiInsights] = useState(null);
+  const generateInsights = useAction(api.ai.generateHealthInsights);
+
   useEffect(() => { const t = setTimeout(() => setLoading(false), 400); return () => clearTimeout(t); }, []);
+
+  useEffect(() => {
+    if (!convexUser?._id || aiInsights !== null) return;
+    generateInsights({
+      userId: convexUser._id,
+      vitals: [],
+      recentRecords: records,
+      medications,
+      userProfile: convexUser,
+    }).then(setAiInsights).catch(console.error);
+  }, [convexUser?._id]);
 
   const twin = useMemo(
     () => computeTwinScores(records, latestVitals, medications, []),
     [records, latestVitals, medications]
   );
-
-  const twinInsight = {
-    id: "twin-predict-1",
-    iconName: "Activity",
-    iconColor: "#00C9A7",
-    title: "HbA1c Prediction",
-    description:
-      "Based on your trajectory (+1.2% reduction in 6 months), maintaining current medication and diet should bring HbA1c below 7.0% within the next 3–4 months.",
-    borderColor: "#00C9A7",
-    bgColor: "rgba(0,201,167,0.05)",
-  };
 
   if (loading) {
     return (
@@ -341,8 +349,23 @@ export default function TwinPage() {
           <div style={{ padding: "0 20px 24px" }}>
             <SectionHeader title="AI Predictions & Insights" badge="AI" />
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[twinInsight].map((insight) => (
-                <InsightCard key={insight.id} insight={insight} />
+              {(aiInsights || [{
+                type: "neutral", title: "HbA1c Prediction",
+                message: "Based on your trajectory, maintaining current medication and diet should improve your HbA1c in 3–4 months.",
+                icon: "Activity",
+              }]).map((insight, i) => (
+                <InsightCard
+                  key={i}
+                  insight={{
+                    id: `ai-${i}`,
+                    iconName: insight.icon || "Activity",
+                    iconColor: insight.type === "warning" ? "#F39C12" : insight.type === "positive" ? "#0D6E4F" : "#00C9A7",
+                    title: insight.title,
+                    description: insight.message,
+                    borderColor: insight.type === "warning" ? "#F39C12" : insight.type === "positive" ? "#0D6E4F" : "#00C9A7",
+                    bgColor: insight.type === "warning" ? "rgba(243,156,18,0.05)" : insight.type === "positive" ? "rgba(13,110,79,0.05)" : "rgba(0,201,167,0.05)",
+                  }}
+                />
               ))}
             </div>
           </div>
