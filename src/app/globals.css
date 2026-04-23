@@ -119,6 +119,32 @@ body {
   font-family: var(--font-dm-sans, 'DM Sans', sans-serif);
 }
 
+/* ─── Indian language script support ────────────────────────── */
+:lang(hi), :lang(mr) {
+  font-family: var(--font-devanagari), 'Noto Sans Devanagari', sans-serif;
+}
+:lang(kn) {
+  font-family: var(--font-devanagari), 'Noto Sans Kannada', sans-serif;
+}
+:lang(ta) {
+  font-family: var(--font-devanagari), 'Noto Sans Tamil', sans-serif;
+}
+:lang(te) {
+  font-family: var(--font-devanagari), 'Noto Sans Telugu', sans-serif;
+}
+:lang(bn) {
+  font-family: var(--font-devanagari), 'Noto Sans Bengali', sans-serif;
+}
+
+/* Force proper rendering for chat bubbles containing non-Latin text */
+.chat-text-content {
+  font-family: var(--font-dm-sans), var(--font-devanagari),
+    'Noto Sans Devanagari', 'Noto Sans Kannada', 'Noto Sans Tamil',
+    'Noto Sans Telugu', 'Noto Sans Bengali', sans-serif;
+  unicode-bidi: normal;
+  direction: ltr;
+}
+
 /* Text gradient utility */
 .text-gradient {
   background: linear-gradient(135deg, #0D6E4F, #00C9A7);

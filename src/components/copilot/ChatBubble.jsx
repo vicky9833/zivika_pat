@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Stethoscope } from "lucide-react";
+import { Stethoscope, Volume2, VolumeX } from "lucide-react";
+import { useTextToSpeech } from "@/lib/hooks/useTextToSpeech";
 
 const B = "var(--font-dm-sans, 'DM Sans', sans-serif)";
 
@@ -55,9 +56,11 @@ function renderText(text, isUser) {
  *  text        message string (supports **bold** and • bullets)
  *  timestamp   Date object
  *  showAvatar  bool — show the 🌿 icon for first message in an assistant sequence
+ *  language    string — language code for TTS (default "en")
  */
-export default function ChatBubble({ role, text, timestamp, showAvatar }) {
+export default function ChatBubble({ role, text, timestamp, showAvatar, language = "en" }) {
   const isUser = role === "user";
+  const { isSpeaking, speak, stopSpeaking } = useTextToSpeech();
 
   return (
     <motion.div
@@ -118,7 +121,33 @@ export default function ChatBubble({ role, text, timestamp, showAvatar }) {
             wordBreak: "break-word",
           }}
         >
-          {renderText(text, isUser)}
+          <div className="chat-text-content" style={{ fontFamily: `var(--font-dm-sans), var(--font-devanagari), 'Noto Sans Devanagari', sans-serif` }}>
+            {renderText(text, isUser)}
+          </div>
+          {/* TTS speaker button — assistant messages only */}
+          {!isUser && (
+            <button
+              onClick={() => isSpeaking ? stopSpeaking() : speak(text, language)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                background: "rgba(13,110,79,0.08)",
+                border: "none",
+                cursor: "pointer",
+                marginTop: 8,
+                flexShrink: 0,
+              }}
+              aria-label={isSpeaking ? "Stop speaking" : "Read aloud"}
+            >
+              {isSpeaking
+                ? <VolumeX size={14} color="#0D6E4F" />
+                : <Volume2 size={14} color="#0D6E4F" />}
+            </button>
+          )}
         </div>
       </div>
 

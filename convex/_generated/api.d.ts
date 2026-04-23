@@ -15,6 +15,7 @@ import type * as http from "../http.js";
 import type * as lib from "../lib.js";
 import type * as medications from "../medications.js";
 import type * as notifications from "../notifications.js";
+import type * as periods from "../periods.js";
 import type * as records from "../records.js";
 import type * as users from "../users.js";
 import type * as vitals from "../vitals.js";
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   lib: typeof lib;
   medications: typeof medications;
   notifications: typeof notifications;
+  periods: typeof periods;
   records: typeof records;
   users: typeof users;
   vitals: typeof vitals;

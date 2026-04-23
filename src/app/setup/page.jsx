@@ -27,6 +27,12 @@ import {
 import ZivikaLogo from "@/components/shared/ZivikaLogo";
 import { useUserStore } from "@/lib/stores/user-store";
 import { useConvexUser } from "@/lib/hooks/useConvexUser";
+import {
+  calculateBMI,
+  calculateBMR,
+  calculateTDEE,
+  calculateBodyFat,
+} from "@/lib/health-calculations";
 
 const H = "var(--font-outfit, 'Outfit', sans-serif)";
 const B = "var(--font-dm-sans, 'DM Sans', sans-serif)";
@@ -238,14 +244,23 @@ export default function SetupPage() {
     }
 
     // Live BMI
+    // Calculate all health metrics using India-specific thresholds
     const weightNum = Number(weight) || 0;
-    let bmi = null;
-    let bmiCategory = null;
-    if (normHeightCm && weightNum) {
-      const hM = normHeightCm / 100;
-      bmi = Math.round((weightNum / (hM * hM)) * 10) / 10;
-      bmiCategory = bmi < 18.5 ? "Underweight" : bmi < 25 ? "Normal" : bmi < 30 ? "Overweight" : "Obese";
-    }
+    const bmiResult = normHeightCm && weightNum ? calculateBMI(weightNum, normHeightCm) : null;
+    const bmi = bmiResult?.value ?? null;
+    const bmiCategory = bmiResult?.category ?? null;
+
+    const ageYears = dob
+      ? Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+      : null;
+    const genderKey = gender?.toLowerCase() === "male" ? "male" : "female";
+    const bmrResult = ageYears && normHeightCm && weightNum
+      ? calculateBMR(weightNum, normHeightCm, ageYears, genderKey)
+      : null;
+    const tdeeResult = bmrResult ? calculateTDEE(bmrResult) : null;
+    const bodyFatResult = bmiResult && ageYears
+      ? calculateBodyFat(bmiResult.value, ageYears, genderKey)
+      : null;
 
     const profileData = {
       name: nameTrimmed,
@@ -261,6 +276,9 @@ export default function SetupPage() {
       weight: weight ? `${weight} kg` : null,
       bmi,
       bmiCategory,
+      bmr: bmrResult ?? null,
+      tdee: tdeeResult?.maintain ?? null,
+      bodyFatPercent: bodyFatResult?.value ?? null,
       conditions,
       healthGoal,
       nativeLanguage,
@@ -285,6 +303,11 @@ export default function SetupPage() {
       bloodGroup: bloodGroup || undefined,
       height: normHeightCm ?? undefined,
       weight: weightNum || undefined,
+      bmi: bmi ?? undefined,
+      bmiCategory: bmiCategory ?? undefined,
+      bmr: bmrResult ?? undefined,
+      tdee: tdeeResult?.maintain ?? undefined,
+      bodyFatPercent: bodyFatResult?.value ?? undefined,
       conditions,
       healthGoal: healthGoal || undefined,
       nativeLanguage,

@@ -19,6 +19,42 @@ MONITOR USAGE: console.cloud.google.com/apis/api/generativelanguage
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 
+// ── Clean AI response text before returning to client ─────────────────────
+// Fixes mojibake (garbled Unicode) and strips markdown symbols.
+function cleanAIResponse(text) {
+  if (!text) return text;
+  return text
+    // Fix broken Unicode arrows and symbols (UTF-8 mojibake)
+    .replace(/â†'/g, '→')
+    .replace(/â€™/g, "'")
+    .replace(/â€œ/g, '"')
+    .replace(/â€/g, '"')
+    .replace(/â€"/g, '—')
+    .replace(/â€˜/g, "'")
+    .replace(/Ã©/g, 'é')
+    .replace(/âš /g, '⚠')
+    .replace(/â†'/g, '→')
+    // Remove markdown formatting symbols
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/#{1,6}\s/g, '')
+    .replace(/`{1,3}(.*?)`{1,3}/g, '$1')
+    // Clean multiple newlines
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// Plain-text formatting rule injected into all system prompts
+const PLAIN_TEXT_RULE = `
+FORMATTING RULES (MANDATORY):
+Respond in plain text only. No markdown formatting.
+No asterisks for bold (**word**), no hashtags for headers (#), no backticks for code.
+Use plain numbered lists (1. 2. 3.) if needed.
+Use plain dashes (-) for bullet points.
+Never use ** for bold — write naturally.
+Write as if speaking to a person in a conversation.
+`;
+
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // GEMINI MODEL CONFIGURATION
 // Primary AI: Google Gemini 2.0 Flash / 1.5 Pro
@@ -230,8 +266,7 @@ function languageInstruction(lang) {
 function buildCopilotPrompt(patientContext, language) {
   return `You are Zivika â€” a personal health companion built for Indian users.
 You are NOT a doctor. You are a trusted, knowledgeable health guide.
-
-${LEGAL_COMPLIANCE}
+${PLAIN_TEXT_RULE}${LEGAL_COMPLIANCE}
 
 PATIENT CONTEXT:
 ${patientContext || "New user â€” no health data available yet."}
@@ -274,8 +309,7 @@ ${languageInstruction(language)}`;
 function buildDoctorPrompt(language) {
   return `You are Zivika Health Assistant â€” a knowledgeable AI health guide for Indian users.
 You help people understand health. You are NOT a doctor and do not replace one.
-
-${LEGAL_COMPLIANCE}
+${PLAIN_TEXT_RULE}${LEGAL_COMPLIANCE}
 
 YOUR DEEP EXPERTISE:
 - Common Indian conditions: Type 2 diabetes, hypertension, thyroid (hypothyroid/hyperthyroid), PCOD/PCOS, anaemia (iron/B12/folate), vitamin D deficiency, fatty liver (NAFLD), kidney stones, dengue, typhoid, gastritis, IBS, obesity
@@ -344,6 +378,7 @@ function buildSymptomPrompt(patientContext) {
   return `You are Zivika's symptom understanding guide for Indian users.
 You help people understand what their symptoms might indicate. You do NOT diagnose.
 
+${PLAIN_TEXT_RULE}
 ${LEGAL_COMPLIANCE}
 
 PATIENT CONTEXT:
@@ -442,7 +477,7 @@ export const chat = action({
     // PRIMARY: Gemini Flash
     try {
       const text = await callGemini(GEMINI_MODELS.FLASH, contents, { maxTokens, temperature: 0.75 });
-      return { content: text, model: GEMINI_MODELS.FLASH };
+      return { content: cleanAIResponse(text), model: GEMINI_MODELS.FLASH };
     } catch (geminiErr) {
       console.warn("Gemini chat failed, falling back to Groq:", geminiErr.message);
     }
@@ -454,7 +489,7 @@ export const chat = action({
         ...args.messages,
       ];
       const result = await callGroqText(groqMessages, maxTokens);
-      return result; // already { content, model }
+      return { content: cleanAIResponse(result.content), model: result.model };
     } catch (groqErr) {
       console.error("All AI models failed for chat:", groqErr.message);
       return {
@@ -582,7 +617,7 @@ Please help me understand what these symptoms might indicate.`;
       const result = await callGemini(GEMINI_MODELS.FLASH, contents, { maxTokens: 650, temperature: 0.6 });
       return {
         urgency: args.severity === "severe" ? "urgent" : "routine",
-        message: result,
+        message: cleanAIResponse(result),
         isEmergency: false,
       };
     } catch (geminiErr) {
@@ -597,7 +632,7 @@ Please help me understand what these symptoms might indicate.`;
       ], 650);
       return {
         urgency: args.severity === "severe" ? "urgent" : "routine",
-        message: result.content,
+        message: cleanAIResponse(result.content),
         isEmergency: false,
       };
     } catch {

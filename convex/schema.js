@@ -29,8 +29,15 @@ export default defineSchema({
     healthId:          v.optional(v.string()),          // e.g. ZVK-2025-A3F2
     bmi:               v.optional(v.number()),
     bmiCategory:       v.optional(v.string()),
+    bmr:               v.optional(v.number()),        // kcal/day at rest (Mifflin-St Jeor)
+    tdee:              v.optional(v.number()),        // kcal/day to maintain weight
+    bodyFatPercent:    v.optional(v.number()),        // Deurenberg formula %
     notificationsEnabled: v.optional(v.boolean()),
     preferredLanguage: v.optional(v.string()),
+    // Period tracking (female users)
+    lastPeriodDate:    v.optional(v.string()),        // YYYY-MM-DD
+    avgCycleLength:    v.optional(v.number()),
+    avgPeriodLength:   v.optional(v.number()),
     createdAt:         v.number(),
   }).index("by_clerk_id", ["clerkId"]),
 
@@ -122,4 +129,18 @@ export default defineSchema({
     createdAt:         v.number(),
   }).index("by_user", ["userId"])
     .index("by_user_read", ["userId", "isRead"]),
+
+  // ── Period Logs ───────────────────────────────────────────────────────────
+  periodLogs: defineTable({
+    userId:     v.id("users"),
+    startDate:  v.string(),                         // YYYY-MM-DD
+    endDate:    v.optional(v.string()),
+    flowLevel:  v.optional(v.string()),             // light/medium/heavy/spotting
+    symptoms:   v.optional(v.array(v.string())),
+    mood:       v.optional(v.string()),
+    notes:      v.optional(v.string()),
+    createdAt:  v.number(),
+  })
+    .index("by_user",      ["userId"])
+    .index("by_user_date", ["userId", "startDate"]),
 });

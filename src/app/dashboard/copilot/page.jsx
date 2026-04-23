@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Stethoscope, Globe, MoreVertical, ChevronLeft, Mic, Send } from "lucide-react";
+import { Stethoscope, Globe, MoreVertical, ChevronLeft, Mic, MicOff, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/components/ui/Toast";
 import { useRecordsStore } from "@/lib/stores/records-store";
@@ -11,6 +11,8 @@ import { useVitalsStore } from "@/lib/stores/vitals-store";
 import { useMedicationsStore } from "@/lib/stores/medications-store";
 import { useConvexUser } from "@/lib/hooks/useConvexUser";
 import { useConvexChat } from "@/lib/hooks/useConvexChat";
+import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
+import { useTextToSpeech } from "@/lib/hooks/useTextToSpeech";
 import ChatBubble from "@/components/copilot/ChatBubble";
 import TypingIndicator from "@/components/copilot/TypingIndicator";
 import QuickPrompts from "@/components/copilot/QuickPrompts";
@@ -48,25 +50,11 @@ const LANGUAGES = [
 let docMsgId = 1;
 function newDocId() { return `doc-${Date.now()}-${docMsgId++}`; }
 
-// â”€â”€ Simulated voice questions (replace with Sarvam AI STT in production) â”€â”€â”€â”€â”€
-// SARVAM AI STT INTEGRATION POINT:
+// ── Real voice input uses Web Speech API (useSpeechRecognition hook) ──────────
+// Sarvam AI STT integration point (for higher accuracy on Indian languages):
 // POST https://api.sarvam.ai/speech-to-text
 // Headers: { "api-subscription-key": process.env.NEXT_PUBLIC_SARVAM_API_KEY }
 // Body: FormData { "file": audioBlob, "language_code": "hi-IN"|"kn-IN"|"en-IN", "model": "saarika:v2" }
-// Then call sendDoctorMessage(data.transcript) instead of a simulated question.
-const VOICE_QUESTIONS = [
-  "I've been having headaches for the past three days and paracetamol isn't helping",
-  "My mother's sugar levels are very high in the morning, what should she do?",
-  "Is it safe to take crocin and dolo together?",
-  "I'm feeling very tired all the time even after sleeping well",
-  "My child has been coughing at night for a week",
-];
-let voiceQIdx = 0;
-function nextVoiceQuestion() {
-  const q = VOICE_QUESTIONS[voiceQIdx % VOICE_QUESTIONS.length];
-  voiceQIdx++;
-  return q;
-}
 
 // â”€â”€â”€ Inner page â€” uses useSearchParams so must be wrapped in Suspense â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function CopilotPageInner() {
@@ -92,13 +80,46 @@ function CopilotPageInner() {
   const [language, setLanguage] = useState(convexUser?.nativeLanguage ?? "en");
   const [isTyping, setIsTyping] = useState(false);
   const [inputText, setInputText] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showLangBar, setShowLangBar] = useState(false);
 
+  // Real voice: Web Speech API
+  const {
+    isListening, transcript, error: speechError,
+    startListening, stopListening, clearTranscript, isSupported: speechSupported,
+  } = useSpeechRecognition(language);
+  const { speak, stopSpeaking } = useTextToSpeech();
+
+  // Track wasTyping to auto-speak when AI finishes responding
+  const wasTypingRef = useRef(false);
+  const hasMountedRef = useRef(false);
   const textareaRef = useRef(null);
   const endRef = useRef(null);
-  const recordingTimerRef = useRef(null);
+
+  // Auto-fill input with speech transcript when done listening
+  useEffect(() => {
+    if (transcript && !isListening) {
+      setInputText(transcript);
+    }
+  }, [transcript, isListening]);
+
+  // Auto-speak AI response when typing indicator goes away
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      wasTypingRef.current = isTyping;
+      return;
+    }
+    if (wasTypingRef.current && !isTyping) {
+      const msgs = mode === "copilot" ? copilotChat.messages : doctorChat.messages;
+      const lastMsg = msgs[msgs.length - 1];
+      if (lastMsg?.role === "assistant" && lastMsg.content) {
+        speak(lastMsg.content, language);
+      }
+    }
+    wasTypingRef.current = isTyping;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTyping]);
 
   // Build a plain-language health context string for Groq
   const healthContextString = useMemo(() => {
@@ -191,28 +212,20 @@ function CopilotPageInner() {
 
   function handleMicPress() {
     if (isTyping) return;
-    if (isRecording) {
-      clearTimeout(recordingTimerRef.current);
-      setIsRecording(false);
-      setIsProcessing(true);
-      setTimeout(() => {
-        const question = nextVoiceQuestion();
-        setIsProcessing(false);
-        if (mode === "copilot") sendCopilotMessage(question);
-        else sendDoctorMessage(question);
-      }, 1000);
+    if (isListening) {
+      // Stop recording — transcript auto-fills inputText via useEffect
+      stopListening();
     } else {
-      setIsRecording(true);
-      recordingTimerRef.current = setTimeout(() => {
-        setIsRecording(false);
-        setIsProcessing(true);
-        setTimeout(() => {
-          const question = nextVoiceQuestion();
-          setIsProcessing(false);
-          if (mode === "copilot") sendCopilotMessage(question);
-          else sendDoctorMessage(question);
-        }, 1000);
-      }, 3000);
+      // Stop TTS if playing, then start STT
+      stopSpeaking();
+      clearTranscript();
+      setInputText("");
+      if (speechSupported) {
+        startListening();
+      } else {
+        // Fallback: open keyboard
+        textareaRef.current?.focus();
+      }
     }
   }
 
@@ -424,6 +437,7 @@ function CopilotPageInner() {
                 text={text}
                 timestamp={timestamp}
                 showAvatar={showAvatar}
+                language={language}
               />
             );
           })}
@@ -509,16 +523,37 @@ function CopilotPageInner() {
             onClick={handleMicPress}
             style={{
               width: 40, height: 40, borderRadius: "50%",
-              background: isRecording ? "#FEE2E2" : "#F0F7F4",
+              background: isListening ? "#FEE2E2" : "#F0F7F4",
               border: "none",
               display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer", flexShrink: 0,
               transition: "background 0.2s",
             }}
-            aria-label={isRecording ? "Stop recording" : "Start voice input"}
+            aria-label={isListening ? "Stop recording" : "Start voice input"}
           >
-            <Mic size={16} color={isRecording ? "#DC2626" : "#0D6E4F"} />
+            {isListening
+              ? <MicOff size={16} color="#DC2626" />
+              : <Mic size={16} color="#0D6E4F" />}
           </button>
+
+          {/* Transcript preview above input when listening */}
+          {isListening && transcript && (
+            <div style={{
+              position: "absolute",
+              bottom: "100%",
+              left: 16, right: 16,
+              padding: "8px 12px",
+              background: "rgba(13,110,79,0.08)",
+              borderRadius: 12,
+              fontFamily: B,
+              fontSize: 13,
+              color: "#0B1F18",
+              border: "1px solid #DCE8E2",
+              marginBottom: 4,
+            }}>
+              🎤 {transcript}
+            </div>
+          )}
 
           <textarea
             ref={textareaRef}
@@ -526,13 +561,13 @@ function CopilotPageInner() {
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              isRecording ? "Listening..."
-              : isProcessing ? "Processing..."
+              isListening ? "Listening…"
+              : isProcessing ? "Processing…"
               : mode === "copilot" ? "Ask about your health..."
               : "Ask any health question..."
             }
             rows={1}
-            disabled={isTyping || isRecording || isProcessing}
+            disabled={isTyping || isListening || isProcessing}
             style={{
               flex: 1,
               resize: "none",

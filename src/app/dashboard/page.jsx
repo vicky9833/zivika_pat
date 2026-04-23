@@ -8,7 +8,7 @@ import {
   Heart, Wind, Activity, Thermometer, Footprints, Moon,
   Brain, Leaf, Droplets,
   Camera, MessageCircle, Rss, ClipboardList,
-  ArrowUpRight, CalendarDays,
+  ArrowUpRight, CalendarDays, CalendarHeart,
   HeartPulse, Users, Frown, Meh, Smile, SmilePlus, Sun, Flame,
 } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
@@ -335,24 +335,27 @@ function DailyCheckin({ language }) {
   );
 }
 
-/* ─── BMI Card ───────────────────────────────────────────────────────────── */
+/* ─── BMI Card (India-specific thresholds) ──────────────────────────────── */
+// India uses 23 as overweight threshold, 27.5 for obese (not 25/30 like West)
 function getBmiMeta(bmi) {
   if (bmi < 18.5) return { label: "Underweight", color: "#2563EB", pct: Math.max(1, Math.round((bmi - 10) / 8.5 * 33)) };
-  if (bmi < 25)   return { label: "Healthy",     color: "#27AE60", pct: 33 + Math.round((bmi - 18.5) / 6.5 * 34) };
-  if (bmi < 30)   return { label: "Overweight",  color: "#F39C12", pct: 67 + Math.round((bmi - 25) / 5 * 16) };
-  return             { label: "Obese",        color: "#E74C3C", pct: Math.min(99, 83 + Math.round((bmi - 30) / 10 * 17)) };
+  if (bmi < 23.0) return { label: "Normal",      color: "#27AE60", pct: 33 + Math.round((bmi - 18.5) / 4.5 * 34) };
+  if (bmi < 27.5) return { label: "Overweight",  color: "#F39C12", pct: 67 + Math.round((bmi - 23.0) / 4.5 * 16) };
+  return             { label: "Obese",        color: "#E74C3C", pct: Math.min(99, 83 + Math.round((bmi - 27.5) / 10 * 17)) };
 }
 
 const BMI_TIPS = {
-  Healthy:     "Great BMI! Keep up your lifestyle.",
+  Normal:      "Great BMI! Keep up your lifestyle.",
   Underweight: "Consider adding nutritious foods to your diet.",
-  Overweight:  "Small daily walks make a big difference.",
+  Overweight:  "Small daily walks make a big difference. (India threshold: 23)",
   Obese:       "Talk to your doctor about a health plan.",
 };
 
-function BmiCard({ bmi, language, router }) {
+function BmiCard({ bmi, bmr, tdee, bodyFatPercent, language, router }) {
+  const [expanded, setExpanded] = useState(false);
   if (!bmi) return null;
   const meta = getBmiMeta(bmi);
+  const hasExtra = bmr || tdee || bodyFatPercent;
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -365,6 +368,7 @@ function BmiCard({ bmi, language, router }) {
           <p style={{ fontFamily: B, fontSize: "0.75rem", color: "#8EBAA3", margin: 0 }}>{t("yourBmi", language)}</p>
           <p style={{ fontFamily: H, fontWeight: 800, fontSize: "2.2rem", color: meta.color, margin: "4px 0 0", lineHeight: 1 }}>{bmi}</p>
           <p style={{ fontFamily: B, fontSize: "0.8rem", color: meta.color, margin: "4px 0 0", fontWeight: 600 }}>{meta.label}</p>
+          <p style={{ fontFamily: B, fontSize: "0.65rem", color: "#8EBAA3", margin: "2px 0 0" }}>India threshold (≥ 23 = Overweight)</p>
         </div>
         <div style={{ paddingTop: 20 }}>
           <div style={{ position: "relative", width: 100, height: 8, borderRadius: 6, background: "linear-gradient(90deg, #2563EB 0%, #27AE60 33%, #F39C12 67%, #E74C3C 100%)" }}>
@@ -375,12 +379,47 @@ function BmiCard({ bmi, language, router }) {
       <p style={{ fontFamily: B, fontSize: "0.75rem", color: "#5A7A6E", margin: "12px 0 4px", lineHeight: 1.5 }}>
         {BMI_TIPS[meta.label]}
       </p>
-      <button
-        onClick={() => router.push("/setup")}
-        style={{ background: "none", border: "none", fontFamily: B, fontSize: "0.75rem", color: "#0D6E4F", cursor: "pointer", padding: 0, fontWeight: 600 }}
-      >
-        {t("recalculate", language)}
-      </button>
+      {hasExtra && (
+        <>
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            style={{ background: "none", border: "none", fontFamily: B, fontSize: "0.75rem", color: "#0D6E4F", cursor: "pointer", padding: 0, fontWeight: 600 }}
+          >
+            {expanded ? "Hide details" : "See BMR, TDEE & body fat"}
+          </button>
+          {expanded && (
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              {bmr && (
+                <div style={{ background: "#F0F7F4", borderRadius: 10, padding: "10px 12px" }}>
+                  <p style={{ fontFamily: B, fontSize: "0.6875rem", color: "#8EBAA3", margin: 0 }}>Basal Metabolic Rate (BMR)</p>
+                  <p style={{ fontFamily: H, fontWeight: 700, fontSize: "1rem", color: "#0B1F18", margin: "2px 0 0" }}>{bmr} <span style={{ fontFamily: B, fontWeight: 400, fontSize: "0.75rem", color: "#5A7A6E" }}>kcal/day at rest</span></p>
+                </div>
+              )}
+              {tdee && (
+                <div style={{ background: "#F0F7F4", borderRadius: 10, padding: "10px 12px" }}>
+                  <p style={{ fontFamily: B, fontSize: "0.6875rem", color: "#8EBAA3", margin: 0 }}>Daily Energy Need (TDEE)</p>
+                  <p style={{ fontFamily: H, fontWeight: 700, fontSize: "1rem", color: "#0B1F18", margin: "2px 0 0" }}>{tdee} <span style={{ fontFamily: B, fontWeight: 400, fontSize: "0.75rem", color: "#5A7A6E" }}>kcal/day to maintain weight</span></p>
+                  <p style={{ fontFamily: B, fontSize: "0.6875rem", color: "#0D6E4F", margin: "2px 0 0" }}>To lose 0.5 kg/week: {tdee - 500} kcal/day</p>
+                </div>
+              )}
+              {bodyFatPercent && (
+                <div style={{ background: "#F0F7F4", borderRadius: 10, padding: "10px 12px" }}>
+                  <p style={{ fontFamily: B, fontSize: "0.6875rem", color: "#8EBAA3", margin: 0 }}>Estimated Body Fat %</p>
+                  <p style={{ fontFamily: H, fontWeight: 700, fontSize: "1rem", color: "#0B1F18", margin: "2px 0 0" }}>{bodyFatPercent}%</p>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+      {!hasExtra && (
+        <button
+          onClick={() => router.push("/setup")}
+          style={{ background: "none", border: "none", fontFamily: B, fontSize: "0.75rem", color: "#0D6E4F", cursor: "pointer", padding: 0, fontWeight: 600 }}
+        >
+          {t("recalculate", language)}
+        </button>
+      )}
     </motion.div>
   );
 }
@@ -941,6 +980,9 @@ export default function DashboardHome() {
           <QuickActionCard icon={Rss}           iconColor="#7C3AED" label={t("healthFeed", language)}    subtitle={t("feedSubtitle", language)}     href="/dashboard/feed"     router={router} />
           <QuickActionCard icon={Users}         iconColor="#0891B2" label={t("familyHealth", language)}  subtitle={t("familySubtitle", language)}   href="/dashboard/family"   router={router} />
           <QuickActionCard icon={Pill}          iconColor="#27AE60" label={t("medications", language)}   subtitle={t("medsSubtitle", language)}     href="/dashboard/medications" router={router} />
+          {user?.gender?.toLowerCase() === "female" && (
+            <QuickActionCard icon={CalendarHeart} iconColor="#E91E8C" label="Period Tracker" subtitle="Cycles, symptoms & predictions" href="/dashboard/period" router={router} />
+          )}
         </div>
       </motion.div>
 
@@ -990,7 +1032,7 @@ export default function DashboardHome() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: "easeOut", delay: 0.28 }}
         >
-          <BmiCard bmi={user.bmi} language={language} router={router} />
+          <BmiCard bmi={user.bmi} bmr={user.bmr} tdee={user.tdee} bodyFatPercent={user.bodyFatPercent} language={language} router={router} />
         </motion.div>
       )}
 
