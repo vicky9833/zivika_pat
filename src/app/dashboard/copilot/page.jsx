@@ -57,6 +57,13 @@ function newDocId() { return `doc-${Date.now()}-${docMsgId++}`; }
 // Body: FormData { "file": audioBlob, "language_code": "hi-IN"|"kn-IN"|"en-IN", "model": "saarika:v2" }
 
 // â”€â”€â”€ Inner page â€” uses useSearchParams so must be wrapped in Suspense â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function cleanTextForSpeech(text) {
+  return text
+    .replace(/[*#`]/g, "")
+    .replace(/\n+/g, ". ")
+    .substring(0, 300);
+}
+
 function CopilotPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -98,10 +105,21 @@ function CopilotPageInner() {
 
   // Auto-fill input with speech transcript when done listening
   useEffect(() => {
-    if (transcript && !isListening) {
+    if (!isListening && transcript.trim().length > 0) {
       setInputText(transcript);
+      const timer = setTimeout(() => {
+        const text = transcript.trim();
+        if (text) {
+          clearTranscript();
+          setInputText("");
+          if (mode === "copilot") sendCopilotMessage(text);
+          else sendDoctorMessage(text);
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
     }
-  }, [transcript, isListening]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isListening, transcript]);
 
   // Auto-speak AI response when typing indicator goes away
   useEffect(() => {
@@ -114,7 +132,7 @@ function CopilotPageInner() {
       const msgs = mode === "copilot" ? copilotChat.messages : doctorChat.messages;
       const lastMsg = msgs[msgs.length - 1];
       if (lastMsg?.role === "assistant" && lastMsg.content) {
-        speak(lastMsg.content, language);
+        speak(cleanTextForSpeech(lastMsg.content), language);
       }
     }
     wasTypingRef.current = isTyping;
@@ -151,10 +169,16 @@ function CopilotPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => {
+      endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 100);
+  }, []);
+
   // Auto-scroll on new messages
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [copilotChat.messages, doctorChat.messages, isTyping]);
+    scrollToBottom();
+  }, [copilotChat.messages, doctorChat.messages, isTyping, scrollToBottom]);
 
   // Auto-grow textarea
   useEffect(() => {
@@ -235,13 +259,12 @@ function CopilotPageInner() {
   const showLang = mode === "doctor" || showLangBar;
 
   return (
-    <div style={{ background: "#fff", minHeight: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 64px)", overflow: "hidden", position: "relative", background: "#fff" }}>
 
       {/* â”€â”€ SECTION 1: Minimal sticky header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div
         style={{
-          position: "sticky",
-          top: 64,
+          flexShrink: 0,
           zIndex: 20,
           height: 56,
           background: "#fff",
@@ -299,6 +322,9 @@ function CopilotPageInner() {
         </div>
       </div>
 
+      {/* Scrollable content area */}
+      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch" }}>
+
       {/* â”€â”€ SECTION 2: Mode toggle (only when no messages) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AnimatePresence>
         {!hasMessages && (
@@ -355,7 +381,7 @@ function CopilotPageInner() {
             flexDirection: "column",
             alignItems: "center",
             padding: "40px 20px",
-            paddingBottom: showLang ? "calc(44px + 62px + 24px)" : "calc(62px + 24px)",
+            paddingBottom: "200px",
           }}
         >
           <motion.div
@@ -421,9 +447,7 @@ function CopilotPageInner() {
             display: "flex",
             flexDirection: "column",
             gap: 10,
-            paddingBottom: showLang ? "calc(44px + 62px + 24px)" : "calc(62px + 24px)",
-            overflowX: "hidden",
-            width: "100%",
+            paddingBottom: "200px",
           }}
         >
           {displayMessages.map((msg, i) => {
@@ -447,6 +471,7 @@ function CopilotPageInner() {
           <div ref={endRef} style={{ height: 1 }} />
         </div>
       )}
+      </div>
 
       {/* â”€â”€ SECTIONS 4+5: Fixed input bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div
@@ -472,16 +497,19 @@ function CopilotPageInner() {
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
               style={{
-                background: "#F0F7F4",
+                background: "#F8FFFE",
+                borderTop: "1px solid #DCE8E2",
                 overflowX: "auto",
                 overflowY: "hidden",
                 scrollbarWidth: "none",
                 msOverflowStyle: "none",
+                WebkitOverflowScrolling: "touch",
                 display: "flex",
                 alignItems: "center",
                 padding: "0 16px",
-                gap: 8,
+                gap: "8px",
                 boxSizing: "border-box",
+                height: "44px",
               }}
             >
               {LANGUAGES.map((lang) => (
@@ -490,16 +518,15 @@ function CopilotPageInner() {
                   onClick={() => setLanguage(lang.code)}
                   style={{
                     flexShrink: 0,
-                    padding: "4px 10px",
-                    borderRadius: 20,
-                    border: "none",
-                    background: language === lang.code ? "#0D6E4F" : "transparent",
-                    color: language === lang.code ? "#fff" : "#5A7A6E",
-                    fontFamily: B,
-                    fontSize: 10,
-                    fontWeight: language === lang.code ? 600 : 400,
-                    cursor: "pointer",
+                    borderRadius: "20px",
+                    padding: "6px 14px",
+                    fontSize: "12px",
                     whiteSpace: "nowrap",
+                    border: language === lang.code ? "none" : "1px solid #DCE8E2",
+                    background: language === lang.code ? "#0D6E4F" : "#F0F7F4",
+                    color: language === lang.code ? "white" : "#5A7A6E",
+                    fontFamily: B,
+                    cursor: "pointer",
                   }}
                 >
                   {lang.label}

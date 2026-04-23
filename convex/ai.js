@@ -192,7 +192,7 @@ async function callGemini(model, contents, config = {}) {
     contents,
     generationConfig: {
       temperature:     config.temperature     ?? 0.3,
-      maxOutputTokens: config.maxTokens       ?? 150,
+      maxOutputTokens: config.maxTokens       ?? 120,
       topP:            config.topP            ?? 0.8,
       topK:            config.topK            ?? 20,
     },
@@ -357,7 +357,7 @@ function buildCopilotSystemPrompt(patientContext, language) {
 
     en: `You are a caring Indian health assistant.
 Reply in simple clear English.
-Maximum 3 short sentences.
+Maximum 2 sentences.
 Ask one follow-up question if needed.`,
   };
 
@@ -366,7 +366,7 @@ Ask one follow-up question if needed.`,
 PATIENT DATA: ${patientContext || "New user."}
 
 RULES FOR ALL LANGUAGES:
-1. Maximum 3 sentences. Never more.
+1. Maximum 2 sentences. Never more.
 2. No markdown. No asterisks. No bullet points.
 3. If question is unclear, ask ONE question only.
 4. Never prescribe medicines.
@@ -400,7 +400,7 @@ You are Zivika — a knowledgeable Indian health guide.
 Not a doctor. A trusted health companion.
 
 RESPONSE RULES:
-1. Maximum 3 short sentences always
+1. Maximum 2 short sentences always
 2. No markdown, no symbols, no bullet points
 3. Natural conversational language for voice
 4. Ask follow-up before giving long advice
@@ -577,7 +577,7 @@ export const chat = action({
 
     // PRIMARY: Gemini Flash — low temperature for reliable script following
     try {
-      const text = await callGemini(GEMINI_MODELS.FLASH, contents, { maxTokens: 150, temperature: 0.3 });
+      const text = await callGemini(GEMINI_MODELS.FLASH, contents, { maxTokens: 120, temperature: 0.3 });
       return { content: cleanAIResponse(text), model: GEMINI_MODELS.FLASH };
     } catch (geminiErr) {
       console.error("Gemini chat failed:", geminiErr.message);
@@ -589,7 +589,7 @@ export const chat = action({
         { role: "system", content: systemPrompt },
         ...finalMessages,
       ];
-      const result = await callGroqText(groqMessages, 150);
+      const result = await callGroqText(groqMessages, 120);
       return { content: cleanAIResponse(result.content), model: result.model };
     } catch (groqErr) {
       console.error("All AI models failed for chat:", groqErr.message);
