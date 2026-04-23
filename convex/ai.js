@@ -25,14 +25,14 @@ function cleanAIResponse(text) {
   if (!text) return text;
   return text
     // Fix broken Unicode arrows and symbols (UTF-8 mojibake)
-    .replace(/â†'/g, '→')
-    .replace(/â€™/g, "'")
-    .replace(/â€œ/g, '"')
-    .replace(/â€/g, '"')
-    .replace(/â€"/g, '—')
-    .replace(/â€˜/g, "'")
-    .replace(/Ã©/g, 'é')
-    .replace(/âš /g, '⚠')
+    .replace(/â†'/g, '\u2192')
+    .replace(/â€™/g, '\u2019')
+    .replace(/â€œ/g, '\u201C')
+    .replace(/â€/g, '\u201D')
+    .replace(/â€"/g, '\u2014')
+    .replace(/â€˜/g, '\u2018')
+    .replace(/Ã©/g, '\u00E9')
+    .replace(/âš /g, '\u26A0')
     // Remove markdown bold/italic (keep content)
     .replace(/\*{1,3}(.*?)\*{1,3}/g, '$1')
     .replace(/_{1,2}(.*?)_{1,2}/g, '$1')
@@ -43,7 +43,7 @@ function cleanAIResponse(text) {
     // Remove markdown links [text](url) → text
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     // Remove bullet/number list prefixes (voice doesn't need them)
-    .replace(/^[-•·]\s+/gm, '')
+    .replace(/^[-\u2022\u00B7]\s+/gm, '')
     .replace(/^\d+\.\s+/gm, '')
     // Clean multiple newlines
     .replace(/\n{3,}/g, '\n\n')
@@ -63,20 +63,37 @@ Write as if speaking to a person in a conversation.
 
 // Language detection + voice-friendly output rules injected into copilot/doctor prompts
 const LANGUAGE_AND_VOICE_RULES = `
-LANGUAGE DETECTION RULE (CRITICAL):
-Detect the language from the user's latest message.
-If they write in Hindi — respond entirely in Hindi (Devanagari script).
-If they write in Kannada — respond entirely in Kannada.
-If they write in Tamil — respond entirely in Tamil.
-If they write in Telugu — respond entirely in Telugu.
-If they write in Bengali — respond entirely in Bengali.
-If they write in Marathi — respond entirely in Marathi.
-If they write in English — respond in clear, simple English.
-Always match the user's language exactly. Never mix languages unless the user does.
-Use respectful forms: use 'Aap' in Hindi (not 'Tum' or 'Tu').
+SCRIPT ENFORCEMENT RULE (ABSOLUTELY MANDATORY):
+You MUST write in the NATIVE SCRIPT of the user's language. Never romanize.
+
+- If user writes in Hindi: respond ONLY in Devanagari script.
+  CORRECT: "\u0906\u092A\u0915\u093E \u0930\u0915\u094D\u0924\u091A\u093E\u092A \u0920\u0940\u0915 \u0939\u0948\u0964"
+  WRONG: "Aapka raktaap theek hai." (this is romanized — FORBIDDEN)
+
+- If user writes in Kannada: respond ONLY in Kannada script.
+  CORRECT: "\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C86\u0CB0\u0CCB\u0C97\u0CCD\u0CAF \u0C9A\u0CC6\u0CA8\u0CCD\u0CA8\u0CBE\u0C97\u0CBF\u0CA6\u0CC6\u0CCD."
+  WRONG: "Nimma arogya chennagide." (FORBIDDEN)
+
+- If user writes in Tamil: respond ONLY in Tamil script.
+  CORRECT: "\u0B89\u0B99\u0BCD\u0B95\u0BB3\u0BCD \u0B89\u0B9F\u0BB2\u0BCD\u0BA8\u0BB2\u0BAE\u0BCD \u0BA8\u0BB2\u0BCD\u0BB2\u0BA4\u0BC1."
+  WRONG: "Ungal udalnalam nalladu." (FORBIDDEN)
+
+- If user writes in Telugu: respond ONLY in Telugu script.
+  CORRECT: "\u0C2E\u0C40 \u0C06\u0C30\u0C4B\u0C17\u0C4D\u0C2F\u0C02 \u0C2C\u0C3E\u0C17\u0C41\u0C02\u0C26\u0C3F."
+  WRONG: "Mee aarogyam bagundi." (FORBIDDEN)
+
+- If user writes in Bengali: respond ONLY in Bengali script.
+  CORRECT: "\u0986\u09AA\u09A8\u09BE\u09B0 \u09B8\u09CD\u09AC\u09BE\u09B8\u09CD\u09A5\u09CD\u09AF \u09AD\u09BE\u09B2\u09CB\u0964"
+  WRONG: "Apnar swasthya bhalo." (FORBIDDEN)
+
+- If user writes in Marathi: respond ONLY in Marathi Devanagari script.
+  CORRECT: "\u0924\u0941\u092E\u091A\u0947 \u0906\u0930\u094B\u0917\u094D\u092F \u091A\u093E\u0902\u0917\u0932\u0947 \u0906\u0939\u0947."
+  WRONG: "Tumche arogya changle ahe." (FORBIDDEN)
+
+- If user writes in English: respond in clear, simple English.
 
 VOICE-FRIENDLY FORMAT (CRITICAL):
-Your response will be spoken aloud by a voice assistant to the user.
+Your response will be spoken aloud by a voice assistant.
 - Write complete, natural sentences only — no bullet points, no dashes
 - No asterisks, no hash symbols, no markdown of any kind
 - No numbered lists — use flowing prose instead
@@ -84,7 +101,6 @@ Your response will be spoken aloud by a voice assistant to the user.
 - Keep sentences short and clear — one idea per sentence
 - Maximum 4 short paragraphs
 - End with one warm, encouraging sentence
-- For Indian languages: spell out numbers as words (e.g. teen sau for 300, not 300)
 `;
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -285,13 +301,13 @@ async function callGroqVision(imageBase64, mimeType, prompt, maxTokens = 1500) {
 
 function languageInstruction(lang) {
   return {
-    hi: "Respond in simple, conversational Hindi (à¤¹à¤¿à¤‚à¤¦à¥€). Use English only for medical/test names.",
-    kn: "Respond in simple Kannada (à²•à²¨à³à²¨à²¡). Use English only for medical/test names.",
-    ta: "Respond in simple Tamil (à®¤à®®à®¿à®´à¯). Use English only for medical/test names.",
-    te: "Respond in simple Telugu (à°¤à±†à°²à±à°—à±). Use English only for medical/test names.",
-    bn: "Respond in simple Bengali (à¦¬à¦¾à¦‚à¦²à¦¾). Use English only for medical/test names.",
-    mr: "Respond in simple Marathi (à¤®à¤°à¤¾à¤ à¥€). Use English only for medical/test names.",
-    en: "Respond in clear, simple English suitable for an educated Indian user.",
+    hi: "MANDATORY: Respond ONLY in Hindi using Devanagari script. NEVER use Roman letters for Hindi words. Use respectful \u0022\u0906\u092A\u0022 form. Example correct: \u0022\u0906\u092A\u0915\u093E \u0938\u094D\u0935\u093E\u0938\u094D\u0925\u094D\u092F \u0905\u091A\u094D\u091B\u093E \u0939\u0948\u0964\u0022 Example WRONG: \u0022Aapka swasthya accha hai.\u0022",
+    kn: "MANDATORY: Respond ONLY in Kannada script. NEVER romanize. Use respectful \u0022\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE\u0022 form. Example correct: \u0022\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C86\u0CB0\u0CCB\u0C97\u0CCD\u0CAF \u0C9A\u0CC6\u0CA8\u0CCD\u0CA8\u0CBE\u0C97\u0CBF\u0CA6\u0CC6\u0CCD.\u0022 Example WRONG: \u0022Nimma arogya chennagide.\u0022",
+    ta: "MANDATORY: Respond ONLY in Tamil script. NEVER romanize. Use \u0022\u0BA8\u0BC0\u0B99\u0BCD\u0B95\u0BB3\u0BCD\u0022 form. Example correct: \u0022\u0B89\u0B99\u0BCD\u0B95\u0BB3\u0BCD \u0B89\u0B9F\u0BB2\u0BCD\u0BA8\u0BB2\u0BAE\u0BCD \u0BA8\u0BB2\u0BCD\u0BB2\u0BA4\u0BC1.\u0022 Example WRONG: \u0022Ungal udalnalam nalladu.\u0022",
+    te: "MANDATORY: Respond ONLY in Telugu script. NEVER romanize. Use \u0022\u0C2E\u0C40\u0C30\u0C41\u0022 form. Example correct: \u0022\u0C2E\u0C40 \u0C06\u0C30\u0C4B\u0C17\u0C4D\u0C2F\u0C02 \u0C2C\u0C3E\u0C17\u0C41\u0C02\u0C26\u0C3F.\u0022 Example WRONG: \u0022Mee aarogyam bagundi.\u0022",
+    bn: "MANDATORY: Respond ONLY in Bengali script. NEVER romanize. Use \u0022\u0986\u09AA\u09A8\u09BF\u0022 form. Example correct: \u0022\u0986\u09AA\u09A8\u09BE\u09B0 \u09B8\u09CD\u09AC\u09BE\u09B8\u09CD\u09A5\u09CD\u09AF \u09AD\u09BE\u09B2\u09CB.\u0022 Example WRONG: \u0022Apnar swasthya bhalo.\u0022",
+    mr: "MANDATORY: Respond ONLY in Marathi using Devanagari script. NEVER romanize. Use \u0022\u0924\u0941\u092E\u094D\u0939\u0940\u0022 or \u0022\u0906\u092A\u0923\u0022 form. Example correct: \u0022\u0924\u0941\u092E\u091A\u0947 \u0906\u0930\u094B\u0917\u094D\u092F \u091A\u093E\u0902\u0917\u0932\u0947 \u0906\u0939\u0947.\u0022 Example WRONG: \u0022Tumche arogya changle ahe.\u0022",
+    en: "Respond in clear, simple English suitable for an educated Indian user. Avoid medical jargon.",
   }[lang] || "Respond in clear, simple English.";
 }
 

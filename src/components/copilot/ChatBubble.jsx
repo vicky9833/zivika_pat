@@ -5,6 +5,7 @@ import { Stethoscope, Volume2, VolumeX } from "lucide-react";
 import { useTextToSpeech } from "@/lib/hooks/useTextToSpeech";
 
 const B = "var(--font-dm-sans, 'DM Sans', sans-serif)";
+const NOTO_STACK = "'Noto Sans', 'Noto Sans Devanagari', 'Noto Sans Kannada', 'Noto Sans Tamil', 'Noto Sans Telugu', 'Noto Sans Bengali', var(--font-noto), var(--font-devanagari), var(--font-dm-sans), sans-serif";
 
 function formatTime(date) {
   if (!date) return "";
@@ -114,7 +115,7 @@ export default function ChatBubble({ role, text, timestamp, showAvatar, language
 
         {/* Bubble */}
         <div
-          className="chat-text-content"
+          className="chat-text-content chat-bubble-text"
           style={{
             background: isUser
               ? "linear-gradient(135deg, #0D6E4F, #065F46)"
@@ -123,10 +124,11 @@ export default function ChatBubble({ role, text, timestamp, showAvatar, language
             padding: "12px 16px",
             border: isUser ? "none" : "1px solid #DCE8E2",
             boxShadow: isUser ? "none" : "0 2px 8px rgba(0,0,0,0.04)",
-            fontFamily: "var(--font-dm-sans), var(--font-devanagari), 'Noto Sans Devanagari', sans-serif",
+            fontFamily: NOTO_STACK,
             fontSize: "0.875rem",
-            lineHeight: 1.6,
+            lineHeight: 1.7,
             wordBreak: "break-word",
+            overflowWrap: "anywhere",
             minWidth: 60,
           }}
         >

@@ -1,4 +1,4 @@
-import { Outfit, DM_Sans, Noto_Sans_Devanagari } from "next/font/google";
+import { Outfit, DM_Sans, Noto_Sans_Devanagari, Noto_Sans } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/shared/Providers";
 
@@ -23,6 +23,14 @@ const notoDevanagari = Noto_Sans_Devanagari({
   display: "swap",
 });
 
+// Generic Noto Sans — covers Latin + Devanagari; CSS @import covers other Indian scripts
+const notoSans = Noto_Sans({
+  subsets: ["latin", "devanagari"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-noto",
+  display: "swap",
+});
+
 export const metadata = {
   title: "India's Intelligent Health OS | Zivika Labs",
   description:
@@ -43,7 +51,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${outfit.variable} ${dmSans.variable} ${notoDevanagari.variable}`}>
+    <html lang="en" className={`${outfit.variable} ${dmSans.variable} ${notoDevanagari.variable} ${notoSans.variable}`}>
       <body style={{ margin: 0, padding: 0, backgroundColor: "#111111" }}>
         {/* 390px phone-frame container — dark body visible on desktop */}
         <Providers>
