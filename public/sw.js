@@ -1,16 +1,10 @@
-const CACHE_NAME = "zivika-v1";
-const STATIC_ASSETS = [
-  "/",
-  "/manifest.json",
-  "/logo.png",
-];
+const CACHE_NAME = "zivika-v2";
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
-  );
+self.addEventListener("install", () => {
+  // Skip the waiting phase immediately.
+  // We intentionally do NOT call cache.addAll() here because
+  // cacheable routes redirect when unauthenticated and that causes
+  // the install to fail with a TypeError, breaking the PWA entirely.
   self.skipWaiting();
 });
 
@@ -32,6 +26,8 @@ self.addEventListener("fetch", (event) => {
   if (event.request.url.includes("/api/")) return;
   if (event.request.url.includes("convex.cloud")) return;
   if (event.request.url.includes("clerk")) return;
+  if (event.request.url.includes("googleapis.com")) return;
+  if (event.request.url.includes("groq.com")) return;
 
   event.respondWith(
     fetch(event.request)

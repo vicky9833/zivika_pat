@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -9,13 +9,15 @@ import { useUserStore } from "../stores/user-store";
 /**
  * useConvexUser
  * - Reads the Convex user document for the currently signed-in Clerk user
+ * - Auto-creates the user record if the Clerk webhook hasn't fired yet
  * - Syncs the result into Zustand so all existing UI that reads from
  *   useUserStore() continues to work without changes
- * - Exposes `completeProfile` mutation for the setup page
+ * - Exposes `completeProfile` and `updateProfile` mutations
  */
 export function useConvexUser() {
   const { user: clerkUser, isSignedIn } = useUser();
   const updateUser = useUserStore((s) => s.updateUser);
+  const createAttempted = useRef(false);
 
   const convexUser = useQuery(
     api.users.getByClerkId,
@@ -24,8 +26,24 @@ export function useConvexUser() {
       : "skip"
   );
 
+  const createUserMutation      = useMutation(api.users.createUser);
   const completeProfileMutation = useMutation(api.users.completeProfile);
   const updateProfileMutation   = useMutation(api.users.updateProfile);
+
+  // Auto-create user record when webhook hasn't fired yet.
+  // convexUser === null means the query ran and found nothing.
+  // convexUser === undefined means the query is still loading.
+  useEffect(() => {
+    if (!isSignedIn || !clerkUser?.id) return;
+    if (convexUser !== null) return; // loading (undefined) or already exists
+    if (createAttempted.current) return;
+    createAttempted.current = true;
+    createUserMutation({
+      clerkId: clerkUser.id,
+      email:   clerkUser.primaryEmailAddress?.emailAddress,
+      name:    clerkUser.fullName || clerkUser.firstName || undefined,
+    }).catch((err) => console.warn("[useConvexUser] createUser failed:", err?.message));
+  }, [convexUser, isSignedIn, clerkUser, createUserMutation]);
 
   // Sync Convex → Zustand whenever the document changes
   useEffect(() => {
@@ -67,6 +85,7 @@ export function useConvexUser() {
 
   return {
     convexUser,
+    convexUserId:    convexUser?._id,
     isLoading:       convexUser === undefined,
     profileComplete: convexUser?.profileComplete ?? false,
     completeProfile,

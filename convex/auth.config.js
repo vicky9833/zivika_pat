@@ -4,11 +4,16 @@
  * The domain must match the Clerk JWT issuer URL.
  * Convex fetches {domain}/.well-known/openid-configuration to discover the JWKS endpoint.
  * The applicationID must match the JWT "aud" (audience) claim — Clerk sets this to "convex".
+ *
+ * Set CLERK_JWT_ISSUER_DOMAIN in Convex env vars:
+ *   npx convex env set CLERK_JWT_ISSUER_DOMAIN https://easy-herring-30.clerk.accounts.dev
  */
 export default {
   providers: [
     {
-      domain: "https://easy-herring-30.clerk.accounts.dev",
+      domain:
+        process.env.CLERK_JWT_ISSUER_DOMAIN ||
+        "https://easy-herring-30.clerk.accounts.dev",
       applicationID: "convex",
     },
   ],

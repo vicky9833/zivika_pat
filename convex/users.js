@@ -166,6 +166,38 @@ export const getPhotoUrl = query({
   },
 });
 
+// ── Self-service user creation (when webhook hasn't fired yet) ─────────────
+// Called from the client after sign-up so the user doc exists before setup.
+export const createUser = mutation({
+  args: {
+    clerkId:  v.string(),
+    email:    v.optional(v.string()),
+    name:     v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    // Security: only allow creating your own record
+    if (identity.subject !== args.clerkId) throw new Error("Unauthorized");
+
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+
+    if (existing) return existing._id;
+
+    return await ctx.db.insert("users", {
+      clerkId:         args.clerkId,
+      email:           args.email,
+      name:            args.name || "User",
+      profileComplete: false,
+      onboarded:       false,
+      createdAt:       Date.now(),
+    });
+  },
+});
+
 // ── Generate upload URL for profile photo ────────────────────────────────
 export const generateUploadUrl = mutation({
   args: {},

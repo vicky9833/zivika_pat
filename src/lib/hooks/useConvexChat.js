@@ -20,16 +20,21 @@ export function useConvexChat(convexUser, mode = "copilot") {
   const chatAction           = useAction(api.ai.chat);
 
   async function sendMessage(content, language, healthContext, user) {
-    if (!userId) throw new Error("No user");
-
-    // Save user message immediately
-    await saveMessageMutation({
-      userId,
-      role:     "user",
-      content,
-      mode,
-      language: language ?? "en",
-    });
+    // Save user message only if user exists in Convex DB.
+    // If auth is not yet synced, we still run the AI and return a response.
+    if (userId) {
+      try {
+        await saveMessageMutation({
+          userId,
+          role:     "user",
+          content,
+          mode,
+          language: language ?? "en",
+        });
+      } catch (e) {
+        console.warn("[chat] Could not save user message:", e?.message);
+      }
+    }
 
     // Build messages array from current history + new user message
     const history = (messages ?? []).map((m) => ({
@@ -38,7 +43,7 @@ export function useConvexChat(convexUser, mode = "copilot") {
     }));
     history.push({ role: "user", content });
 
-    // Call Groq via Convex action
+    // Call AI action (works without auth — no DB writes inside)
     const result = await chatAction({
       messages: history,
       mode,
@@ -47,14 +52,20 @@ export function useConvexChat(convexUser, mode = "copilot") {
       user,
     });
 
-    // Save assistant response
-    await saveMessageMutation({
-      userId,
-      role:     "assistant",
-      content:  result.content,
-      mode,
-      language: language ?? "en",
-    });
+    // Persist assistant response if we have a user ID
+    if (userId) {
+      try {
+        await saveMessageMutation({
+          userId,
+          role:     "assistant",
+          content:  result.content,
+          mode,
+          language: language ?? "en",
+        });
+      } catch (e) {
+        console.warn("[chat] Could not save assistant message:", e?.message);
+      }
+    }
 
     return result.content;
   }
