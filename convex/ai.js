@@ -109,9 +109,9 @@ Your response will be spoken aloud by a voice assistant.
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const GEMINI_MODELS = {
-  FLASH: "gemini-2.0-flash",  // Fast & cheap: copilot, symptoms, report scan
-  PRO:   "gemini-1.5-pro",    // Deep reasoning: health insights, twin
-  VISION: "gemini-2.0-flash", // Vision tasks: same model handles images
+  FLASH:       "gemini-2.0-flash",  // Fast & cheap: copilot, symptoms, report scan
+  PRO:         "gemini-1.5-pro",    // Deep reasoning: health insights, twin
+  FLASH_VISION: "gemini-2.0-flash", // Vision tasks: same model handles images
 };
 
 // Groq model fallback chain (text)
@@ -191,10 +191,10 @@ async function callGemini(model, contents, config = {}) {
   const body = {
     contents,
     generationConfig: {
-      temperature:     config.temperature     ?? 0.7,
-      maxOutputTokens: config.maxTokens       ?? 800,
-      topP:            0.9,
-      topK:            40,
+      temperature:     config.temperature     ?? 0.3,
+      maxOutputTokens: config.maxTokens       ?? 150,
+      topP:            config.topP            ?? 0.8,
+      topK:            config.topK            ?? 20,
     },
     safetySettings: [
       { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
@@ -311,71 +311,109 @@ function languageInstruction(lang) {
   }[lang] || "Respond in clear, simple English.";
 }
 
-function buildCopilotPrompt(patientContext, language) {
-  return `You are Zivika â€” a personal health companion built for Indian users.
-You are NOT a doctor. You are a trusted, knowledgeable health guide.
-${PLAIN_TEXT_RULE}${LANGUAGE_AND_VOICE_RULES}${LEGAL_COMPLIANCE}
+function buildCopilotSystemPrompt(patientContext, language) {
+  const LANG_RULES = {
+    hi: `تم एक भारتیय स्वास्थ्य सहायक हो।
+हमेशा हिंदी में देवनागरी लिपि में जवाब दो।
+कभी भी रोमन अक्षरों में हिंदी मत लिखो।
+सही: "आपको पानी पीना चाहिए।"
+गलत: "Aapko paani peena chahiye."
+अधिकतम 3 छोटे वाक्य। अगर जरूरी हो تो एक सवाल पूछो।`,
 
-PATIENT CONTEXT:
-${patientContext || "New user â€” no health data available yet."}
+    kn: `ನೀವು ಭಾರತೀಯ ಆರೋಗ್ಯ ಸಹಾಯಕ.
+ಯಾವಾಗಲೂ ಕನ್ನಡ ಲಿಪಿಯಲ್ಲಿ ಉತ್ತರಿಸಿ.
+ರೋಮನ್ ಅಕ್ಷರಗಳಲ್ಲಿ ಕನ್ನಡ ಬರೆಯಬೇಡಿ.
+ಸರಿ: "ನೀವು ನೀರು ಕುಡಿಯಬೇಕು."
+ತಪ್ಪು: "Neevu neeru kudiyabeku."
+ಗರಿಷ್ಠ 3 ಚಿಕ್ಕ ವಾಕ್ಯಗಳು.`,
 
-YOUR PERSONALITY & KNOWLEDGE:
-- Warm and caring, like a trusted friend who deeply understands health
-- Understands Indian context: joint families, Indian dietary habits (dal, roti, rice, ghee, spices), festivals, climate, work stress
-- Knows common Indian health conditions: Type 2 diabetes, hypertension, thyroid disorders, PCOD/PCOS, anaemia, vitamin D/B12 deficiency, fatty liver
-- Understands Indian lab test naming conventions and reference ranges
-- Aware of both allopathic and Ayurvedic approaches (can explain, never prescribe)
+    ta: `நீங்கள் ஒரு இந்திய சுகாதார உதவியாளர்.
+எப்போதும் தமிழ் எழுத்தில் பதிலளிக்கவும்.
+ஆங்கில எழுத்தில் தமிழ் எழுதாதீர்கள்.
+சரி: "நீங்கள் தண்ணீர் குடிக்க வேண்டும்."
+தவறு: "Neengal thanneer kudikka vendum."
+அதிகபட்சம் 3 சிறிய வாக்கியங்கள்.`,
 
-RESPONSE STYLE:
-- CONCISE: answer exactly what was asked
-- Maximum 3-4 short paragraphs unless the user requests detail
-- Use simple language â€” avoid complex medical jargon
-- Format: brief empathetic acknowledgment â†’ clear answer â†’ next step if needed
-- Use bullet points only when listing multiple items
-- End health-sensitive questions with a gentle reminder to consult their doctor
+    te: `మీరు భారతీయ ఆరోగ్య సహాయకుడు.
+ఎల్లప్పుడూ తెలుగు లిపిలో సమాధానం ఇవ్వండి.
+రోమన్ అక్షరాలలో తెలుగు రాయకండి.
+సరైనది: "మీరు నీరు తాగాలి."
+తప్పు: "Meeru neeru taagaali."
+గరిష్టం 3 చిన్న వాక్యాలు.`,
 
-CAPABILITIES:
-- Explain what lab results mean in plain language
-- Explain what a medicine does (NOT dosage, frequency, or schedule)
-- Explain health conditions in simple terms
-- Suggest healthy lifestyle habits relevant to India
-- Help understand health records and reports
-- Answer questions about diet, exercise, sleep, and stress management
-- Explain what symptoms might indicate (never diagnose)
+    bn: `আপনি একজন ভারতীয় স্বাস্থ্য সহায়ক।
+সর্বদা বাংলা লিপিতে উত্তর দিন।
+রোমান অক্ষরে বাংলা লিখবেন না।
+সঠিক: "আপনার জল পান করা উচিত।"
+ভুল: "Aapnar jal pan kora uchit."
+সর্বোচ্চ 3টি ছোট বাক্য।`,
 
-STRICT LIMITS:
-- Never prescribe any medicine, dose, or schedule
-- Never give a definitive diagnosis ("you have X")
-- Never advise stopping a doctor-prescribed medicine
+    mr: `تمۍهی एक भारتیय आरोग्य सहाय्यक आहाت.
+नेहमी मराठीت देवनागरी लिपीت उत्तर द्या.
+रोमन अक्षराت मराठी लिहू नका.
+बरोबर: "تمۍहی पाणी प्यायला हवे."
+चुकीचे: "Tumhi paani piyala have."
+जास्تीت जास्ت 3 लहान वाक्ये.`,
 
-EMERGENCY RULE: If the user's message contains any emergency symptom, start your entire response with:
-"âš ï¸ EMERGENCY: Please call 108 (Ambulance) or 112 right now. Do not wait."
+    en: `You are a caring Indian health assistant.
+Reply in simple clear English.
+Maximum 3 short sentences.
+Ask one follow-up question if needed.`,
+  };
 
-${languageInstruction(language)}`;
+  return `${LANG_RULES[language] || LANG_RULES.en}
+
+PATIENT DATA: ${patientContext || "New user."}
+
+RULES FOR ALL LANGUAGES:
+1. Maximum 3 sentences. Never more.
+2. No markdown. No asterisks. No bullet points.
+3. If question is unclear, ask ONE question only.
+4. Never prescribe medicines.
+5. Always recommend doctor for serious issues.
+6. For emergency symptoms: say call 108 immediately.
+
+HOW TO RESPOND:
+Simple symptom like headache or fever:
+- Ask: when did it start, how severe, any other symptoms
+- Do NOT give long explanations first
+
+After they answer:
+- Give short practical advice
+- Say when to see a doctor`;
 }
 
-function buildDoctorPrompt(language) {
-  return `You are Zivika Health Assistant â€” a knowledgeable AI health guide for Indian users.
-You help people understand health. You are NOT a doctor and do not replace one.
-${PLAIN_TEXT_RULE}${LANGUAGE_AND_VOICE_RULES}${LEGAL_COMPLIANCE}
+function buildDoctorSystemPrompt(language) {
+  const LANG_RULES = {
+    hi: "हिंदी में देवनागरी लिपि में जवाब दो। रोमन नहीं।",
+    kn: "ಕನ್ನಡ ಲಿಪಿಯಲ್ಲಿ ಉತ್ತರಿಸಿ. ರೋಮನ್ ಅಕ್ಷರ ಬೇಡ.",
+    ta: "தமிழ் எழுத்தில் பதிலளிக்கவும்.",
+    te: "తెలుగు లిపిలో సమాధానం ఇవ్వండి.",
+    bn: "বাংলা লিপিতে উত্তর দিন।",
+    mr: "मराठीت देवनागरी लिपीت उत्तर द्या.",
+    en: "Reply in simple clear English.",
+  };
 
-YOUR DEEP EXPERTISE:
-- Common Indian conditions: Type 2 diabetes, hypertension, thyroid (hypothyroid/hyperthyroid), PCOD/PCOS, anaemia (iron/B12/folate), vitamin D deficiency, fatty liver (NAFLD), kidney stones, dengue, typhoid, gastritis, IBS, obesity
-- Indian diet & health impact: dal, roti, rice, ghee, street food, seasonal produce, fasting practices
-- Climate-related health: monsoon infections, summer heat stroke, winter respiratory issues, AQI impact in Indian cities
-- Common Indian lab tests: CBC, ESR, CRP, LFT, KFT, thyroid profile (T3/T4/TSH), HbA1c, fasting glucose, PPBS, lipid profile, serum ferritin, vitamin D3, B12, urine R/E
-- Indian reference ranges (some differ from Western standards)
-- India healthcare navigation: specialist types, government vs private, health insurance basics
+  return `${LANG_RULES[language] || LANG_RULES.en}
 
-RESPONSE FORMAT:
-Answer the specific question. Structure: What it is â†’ Why it matters â†’ What to watch for â†’ When to see a doctor.
-Keep it warm and conversational. Never more than what the person needs.
+You are Zivika — a knowledgeable Indian health guide.
+Not a doctor. A trusted health companion.
 
-NEVER: Prescribe medicines or dosages. Say "you have [disease]" definitively. Cause unnecessary panic.
-ALWAYS for emergencies: Direct to 108/112 immediately.
+RESPONSE RULES:
+1. Maximum 3 short sentences always
+2. No markdown, no symbols, no bullet points
+3. Natural conversational language for voice
+4. Ask follow-up before giving long advice
+5. Never prescribe medicines or dosages
+6. Always say: consult your doctor for serious issues
+7. Emergency symptoms: call 108 immediately
 
-${languageInstruction(language)}`;
+DETECT USER LANGUAGE:
+If user writes in Hindi script — respond in Hindi script
+If user writes in Kannada — respond in Kannada
+Match whatever script the user uses.`;
 }
+
 
 function buildReportAnalysisPrompt() {
   return `You are a medical document AI for Zivika Labs, an Indian health management platform.
@@ -507,43 +545,63 @@ export const chat = action({
 
     const systemPrompt =
       args.mode === "doctor"
-        ? buildDoctorPrompt(language)
-        : buildCopilotPrompt(args.healthContext || "", language);
+        ? buildDoctorSystemPrompt(language)
+        : buildCopilotSystemPrompt(args.healthContext || "", language);
 
-    // Build Gemini multi-turn contents
+    // Inject native-script instruction directly into the last user message
+    const SCRIPT_INSTRUCTIONS = {
+      hi: "\u0939\u093F\u0902\u0926\u0940 \u092E\u0947\u0902 \u0909\u0924\u094D\u0924\u0930 \u0926\u0947\u0902\u0964 \u0915\u0947\u0935\u0932 \u0926\u0947\u0935\u0928\u093E\u0917\u0930\u0940 \u0932\u093F\u092A\u093F \u092E\u0947\u0902\u0964 \u0930\u094B\u092E\u0928 \u0905\u0915\u094D\u0937\u0930 \u092C\u093F\u0932\u094D\u0915\u0941\u0932 \u0928\u0939\u0940\u0902\u0964\n\n\u092A\u094D\u0930\u0936\u094D\u0928: ",
+      kn: "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1\u0CA6\u0CB2\u0CCD\u0CB2\u0CBF \u0C89\u0CA4\u0CCD\u0CA4\u0CB0\u0CBF\u0CB8\u0CBF. \u0C95\u0CA8\u0CCD\u0CA8\u0CA1 \u0CB2\u0CBF\u0CAA\u0CBF \u0CAE\u0CBE\u0CA4\u0CCD\u0CB0.\n\n\u0CAA\u0CCD\u0CB0\u0CB6\u0CCD\u0CA8\u0CC6: ",
+      ta: "\u0BA4\u0BAE\u0BBF\u0BB4\u0BBF\u0BB2\u0BCD \u0BAA\u0BA4\u0BBF\u0BB2\u0BB3\u0BBF\u0B95\u0BCD\u0B95\u0BB5\u0BC1\u0BAE\u0BCD. \u0BA4\u0BAE\u0BBF\u0BB4\u0BCD \u0B8E\u0BB4\u0BC1\u0BA4\u0BCD\u0BA4\u0BC1 \u0BAE\u0B9F\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD.\n\n\u0B95\u0BC7\u0BB3\u0BCD\u0BB5\u0BBF: ",
+      te: "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41\u0C32\u0C4B \u0C38\u0C2E\u0C3E\u0C27\u0C3E\u0C28\u0C02 \u0C07\u0C35\u0C4D\u0C35\u0C02\u0C21\u0C3F. \u0C24\u0C46\u0C32\u0C41\u0C17\u0C41 \u0C32\u0C3F\u0C2A\u0C3F \u0C2E\u0C3E\u0C24\u0C4D\u0C30\u0C2E\u0C47.\n\n\u0C2A\u0C4D\u0C30\u0C36\u0C4D\u0C28: ",
+      bn: "\u09AC\u09BE\u0982\u09B2\u09BE\u09AF\u09BC \u0989\u09A4\u09CD\u09A4\u09B0 \u09A6\u09BF\u09A8\u0964 \u09AC\u09BE\u0982\u09B2\u09BE \u09B2\u09BF\u09AA\u09BF \u09B6\u09C1\u09A7\u09C1\u09AE\u09BE\u09A4\u09CD\u09B0\u0964\n\n\u09AA\u09CD\u09B0\u09B6\u09CD\u09A8: ",
+      mr: "\u092E\u0930\u093E\u0920\u0940\u062A \u0909\u0924\u094D\u0924\u0930 \u0926\u094D\u092F\u093E. \u092B\u0915\u094D\u062A \u0926\u0947\u0935\u0928\u093E\u0917\u0930\u0940 \u0932\u093F\u092A\u0940\u062A.\n\n\u092A\u094D\u0930\u0936\u094D\u0928: ",
+    };
+
+    const prefix = SCRIPT_INSTRUCTIONS[language] || "";
+    const lastUserMessage = args.messages[args.messages.length - 1];
+    const modifiedLastMessage = prefix
+      ? { ...lastUserMessage, content: prefix + lastUserMessage.content }
+      : lastUserMessage;
+    const finalMessages = [...args.messages.slice(0, -1), modifiedLastMessage];
+
+    // Build Gemini contents — strictly alternating user/model roles
     const contents = [
-      { role: "user",  parts: [{ text: systemPrompt + "\n\n---\nConversation:" }] },
-      { role: "model", parts: [{ text: "Understood. I'm ready to help as Zivika." }] },
-      ...args.messages.map((m) => ({
+      { role: "user",  parts: [{ text: systemPrompt }] },
+      { role: "model", parts: [{ text: "Understood. I am ready to help." }] },
+      ...finalMessages.map((m) => ({
         role:  m.role === "user" ? "user" : "model",
         parts: [{ text: m.content }],
       })),
     ];
 
-    const maxTokens = args.messages.length > 8 ? 500 : 700;
-
-    // PRIMARY: Gemini Flash
+    // PRIMARY: Gemini Flash — low temperature for reliable script following
     try {
-      const text = await callGemini(GEMINI_MODELS.FLASH, contents, { maxTokens, temperature: 0.75 });
+      const text = await callGemini(GEMINI_MODELS.FLASH, contents, { maxTokens: 150, temperature: 0.3 });
       return { content: cleanAIResponse(text), model: GEMINI_MODELS.FLASH };
     } catch (geminiErr) {
-      console.warn("Gemini chat failed, falling back to Groq:", geminiErr.message);
+      console.error("Gemini chat failed:", geminiErr.message);
     }
 
-    // FALLBACK: Groq
+    // FALLBACK: Groq — note: Indian language accuracy is poor in Groq
     try {
       const groqMessages = [
         { role: "system", content: systemPrompt },
-        ...args.messages,
+        ...finalMessages,
       ];
-      const result = await callGroqText(groqMessages, maxTokens);
+      const result = await callGroqText(groqMessages, 150);
       return { content: cleanAIResponse(result.content), model: result.model };
     } catch (groqErr) {
       console.error("All AI models failed for chat:", groqErr.message);
-      return {
-        content: "I'm having trouble connecting right now. Please try again in a moment. If this is urgent, please consult your doctor directly.",
-        model:   "error-fallback",
-      };
+      const errorMsg =
+        language === "hi" ? "\u092E\u093E\u092B\u093C \u0915\u0930\u0947\u0902, \u0905\u092D\u0940 \u0915\u0928\u0947\u0915\u094D\u0936\u0928 \u092E\u0947\u0902 \u0938\u092E\u0938\u094D\u092F\u093E \u0939\u0948\u0964 \u0915\u0943\u092A\u092F\u093E \u0926\u094B\u092C\u093E\u0930\u093E \u0915\u094B\u0936\u093F\u0936 \u0915\u0930\u0947\u0902\u0964"
+        : language === "kn" ? "\u0C95\u0CCD\u0CB7\u0CAE\u0CBF\u0CB8\u0CBF, \u0CB8\u0C82\u0CAA\u0CB0\u0CCD\u0C95 \u0CB8\u0CAE\u0CB8\u0CCD\u0CAF\u0CC6 \u0C87\u0CA6\u0CC6. \u0CA6\u0CAF\u0CB5\u0CBF\u0C9F\u0CCD\u0C9F\u0CC1 \u0CAE\u0CA4\u0CCD\u0CA4\u0CC6 \u0CAA\u0CCD\u0CB0\u0CAF\u0CA4\u0CCD\u0CA8\u0CBF\u0CB8\u0CBF."
+        : language === "ta" ? "\u0BAE\u0BA9\u0BCD\u0BA9\u0BBF\u0B95\u0BCD\u0B95\u0BB5\u0BC1\u0BAE\u0BCD, \u0B87\u0BA3\u0BC8\u0BAA\u0BCD\u0BAA\u0BC1 \u0B9A\u0BBF\u0B95\u0BCD\u0B95\u0BB2\u0BCD \u0B89\u0BB3\u0BCD\u0BB3\u0BA4\u0BC1. \u0BAE\u0BC0\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD \u0BAE\u0BC1\u0BAF\u0BB1\u0BCD\u0B9A\u0BBF\u0B95\u0BCD\u0B95\u0BB5\u0BC1\u0BAE\u0BCD."
+        : language === "te" ? "\u0C15\u0C4D\u0C37\u0C2E\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F, \u0C15\u0C28\u0C46\u0C15\u0C4D\u0C37\u0C28\u0C4D \u0C38\u0C2E\u0C38\u0C4D\u0C2F \u0C09\u0C02\u0C26\u0C3F. \u0C26\u0C2F\u0C1A\u0C47\u0C38\u0C3F \u0C2E\u0C33\u0C4D\u0C33\u0C40 \u0C2A\u0C4D\u0C30\u0C2F\u0C24\u0C4D\u0C28\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F."
+        : language === "bn" ? "\u09A6\u09C1\u0983\u0996\u09BF\u09A4, \u09B8\u0982\u09AF\u09CB\u0997\u09C7 \u09B8\u09AE\u09B8\u09CD\u09AF\u09BE \u0986\u099B\u09C7\u0964 \u0986\u09AC\u09BE\u09B0 \u099A\u09C7\u09B7\u09CD\u099F\u09BE \u0995\u09B0\u09C1\u09A8\u0964"
+        : language === "mr" ? "\u092E\u093E\u092B \u0915\u0930\u093E, \u0915\u0928\u0947\u0915\u094D\u0936\u0928\u092E\u0927\u094D\u092F\u0947 \u0938\u092E\u0938\u094D\u092F\u093E \u0906\u0939\u0947. \u092A\u0941\u0928\u094D\u0939\u093E \u092A\u094D\u0930\u092F\u0924\u094D\u0928 \u0915\u0930\u093E."
+        : "Sorry, having trouble connecting. Please try again.";
+      return { content: errorMsg, model: "error-fallback" };
     }
   },
 });

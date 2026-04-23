@@ -422,6 +422,8 @@ function CopilotPageInner() {
             flexDirection: "column",
             gap: 10,
             paddingBottom: showLang ? "calc(44px + 62px + 24px)" : "calc(62px + 24px)",
+            overflowX: "hidden",
+            width: "100%",
           }}
         >
           {displayMessages.map((msg, i) => {
