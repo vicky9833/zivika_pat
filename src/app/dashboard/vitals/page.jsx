@@ -58,7 +58,7 @@ export default function VitalsPage() {
   const [selected, setSelected] = useState(null);
   const [logOpen, setLogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  useEffect(() => { const t = setTimeout(() => setLoading(false), 400); return () => clearTimeout(t); }, []);
+  useEffect(() => { const t = setTimeout(() => setLoading(false), 1000); return () => clearTimeout(t); }, []);
 
   const latestMap = hasConvexData ? annotatedConvexMap : zustandLatest;
   const hasVitals = Object.keys(latestMap).length > 0;

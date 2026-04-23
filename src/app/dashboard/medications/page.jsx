@@ -48,7 +48,7 @@ export default function MedicationsPage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  useEffect(() => { const t = setTimeout(() => setLoading(false), 400); return () => clearTimeout(t); }, []);
+  useEffect(() => { const t = setTimeout(() => setLoading(false), 1000); return () => clearTimeout(t); }, []);
 
   // Use Convex data when available, else fall back to Zustand
   const { taken, total } = getTodayAdherence();

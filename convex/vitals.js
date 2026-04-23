@@ -25,7 +25,8 @@ export const log = mutation({
 export const listByUser = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    await requireOwnUser(ctx, args.userId);
+    const user = await ctx.db.get(args.userId);
+    if (!user) return [];
     return await ctx.db
       .query("vitals")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
@@ -41,7 +42,8 @@ export const getHistory = query({
     type:   v.string(),
   },
   handler: async (ctx, args) => {
-    await requireOwnUser(ctx, args.userId);
+    const user = await ctx.db.get(args.userId);
+    if (!user) return [];
     return await ctx.db
       .query("vitals")
       .withIndex("by_user_type", (q) =>

@@ -23,6 +23,14 @@ export default defineSchema({
     profileComplete:   v.optional(v.boolean()),
     onboarded:         v.optional(v.boolean()),
     profilePhotoStorageId: v.optional(v.string()),
+    // Extended profile fields (populated by createUser bootstrap)
+    firstName:         v.optional(v.string()),
+    initials:          v.optional(v.string()),
+    healthId:          v.optional(v.string()),          // e.g. ZVK-2025-A3F2
+    bmi:               v.optional(v.number()),
+    bmiCategory:       v.optional(v.string()),
+    notificationsEnabled: v.optional(v.boolean()),
+    preferredLanguage: v.optional(v.string()),
     createdAt:         v.number(),
   }).index("by_clerk_id", ["clerkId"]),
 

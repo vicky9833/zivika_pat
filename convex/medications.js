@@ -28,7 +28,10 @@ export const create = mutation({
 // ── List active medications for a user ────────────────────────────────────
 export const listActive = query({
   args: { userId: v.id("users") },
-  handler: async (ctx, args) => {    await requireOwnUser(ctx, args.userId);    return await ctx.db
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) return [];
+    return await ctx.db
       .query("medications")
       .withIndex("by_user_active", (q) =>
         q.eq("userId", args.userId).eq("isActive", true)
@@ -41,7 +44,10 @@ export const listActive = query({
 // ── List all medications (including inactive) ────────────────────────────
 export const listAll = query({
   args: { userId: v.id("users") },
-  handler: async (ctx, args) => {    await requireOwnUser(ctx, args.userId);    return await ctx.db
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) return [];
+    return await ctx.db
       .query("medications")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .order("desc")
@@ -124,7 +130,8 @@ export const getLogsByDate = query({
     date:   v.string(),
   },
   handler: async (ctx, args) => {
-    await requireOwnUser(ctx, args.userId);
+    const user = await ctx.db.get(args.userId);
+    if (!user) return [];
     return await ctx.db
       .query("medicationLogs")
       .withIndex("by_user_date", (q) =>

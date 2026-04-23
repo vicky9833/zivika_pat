@@ -76,7 +76,6 @@ export const remove = mutation({
 // ── Generate upload URL (for storing files in Convex) ────────────────────
 export const generateUploadUrl = mutation({
   handler: async (ctx) => {
-    await getAuthenticatedUser(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });

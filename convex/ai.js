@@ -27,6 +27,7 @@ import { v } from "convex/values";
 const GEMINI_MODELS = {
   FLASH: "gemini-2.0-flash",  // Fast & cheap: copilot, symptoms, report scan
   PRO:   "gemini-1.5-pro",    // Deep reasoning: health insights, twin
+  VISION: "gemini-2.0-flash", // Vision tasks: same model handles images
 };
 
 // Groq model fallback chain (text)
@@ -117,11 +118,21 @@ async function callGemini(model, contents, config = {}) {
     ],
   };
 
-  const response = await fetch(url, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify(body),
-  });
+  // 30-second timeout so we fall back to Groq promptly on slow/broken keys
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(body),
+      signal:  controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const err = await response.text();

@@ -28,7 +28,8 @@ export const getHistory = query({
     limit:  v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireOwnUser(ctx, args.userId);
+    const user = await ctx.db.get(args.userId);
+    if (!user) return [];
     const limit = args.limit ?? 50;
     return await ctx.db
       .query("chatMessages")

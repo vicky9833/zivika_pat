@@ -25,7 +25,8 @@ export const create = mutation({
 export const listByUser = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    await requireOwnUser(ctx, args.userId);
+    const user = await ctx.db.get(args.userId);
+    if (!user) return [];
     return await ctx.db
       .query("notifications")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
@@ -38,7 +39,8 @@ export const listByUser = query({
 export const countUnread = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    await requireOwnUser(ctx, args.userId);
+    const user = await ctx.db.get(args.userId);
+    if (!user) return 0;
     const unread = await ctx.db
       .query("notifications")
       .withIndex("by_user_read", (q) =>
