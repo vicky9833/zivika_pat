@@ -801,7 +801,7 @@ export const generateHealthInsights = action({
       {
         type: "info",
         title: "Track your daily vitals",
-        message: "Log blood pressure and heart rate daily " patterns reveal important health trends.",
+        message: "Log blood pressure and heart rate daily - patterns reveal important health trends.",
         icon: "Heart",
       },
       {
