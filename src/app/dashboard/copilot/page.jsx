@@ -88,7 +88,7 @@ function CopilotPageInner() {
     isListening, transcript, error: speechError,
     startListening, stopListening, clearTranscript, isSupported: speechSupported,
   } = useSpeechRecognition(language);
-  const { speak, stopSpeaking } = useTextToSpeech();
+  const { isSpeaking, speak, stopSpeaking } = useTextToSpeech();
 
   // Track wasTyping to auto-speak when AI finishes responding
   const wasTypingRef = useRef(false);
@@ -523,7 +523,7 @@ function CopilotPageInner() {
             onClick={handleMicPress}
             style={{
               width: 40, height: 40, borderRadius: "50%",
-              background: isListening ? "#FEE2E2" : "#F0F7F4",
+              background: isListening ? "rgba(220,38,38,0.10)" : "#F0F7F4",
               border: "none",
               display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer", flexShrink: 0,
@@ -536,29 +536,32 @@ function CopilotPageInner() {
               : <Mic size={16} color="#0D6E4F" />}
           </button>
 
-          {/* Transcript preview above input when listening */}
-          {isListening && transcript && (
+          {/* Listening badge — always visible when mic is active */}
+          {isListening && (
             <div style={{
               position: "absolute",
               bottom: "100%",
-              left: 16, right: 16,
-              padding: "8px 12px",
-              background: "rgba(13,110,79,0.08)",
-              borderRadius: 12,
+              left: "50%",
+              transform: "translateX(-50%)",
+              background: "#DC2626",
+              color: "white",
+              borderRadius: 20,
+              padding: "4px 12px",
+              fontSize: 12,
+              marginBottom: 8,
+              whiteSpace: "nowrap",
               fontFamily: B,
-              fontSize: 13,
-              color: "#0B1F18",
-              border: "1px solid #DCE8E2",
-              marginBottom: 4,
+              fontWeight: 500,
+              boxShadow: "0 2px 8px rgba(220,38,38,0.3)",
             }}>
-              🎤 {transcript}
+              {transcript ? `🎤 ${transcript}` : "Listening... speak now"}
             </div>
           )}
 
           <textarea
             ref={textareaRef}
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={(e) => { if (isSpeaking) stopSpeaking(); setInputText(e.target.value); }}
             onKeyDown={handleKeyDown}
             placeholder={
               isListening ? "Listening…"

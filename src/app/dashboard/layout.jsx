@@ -12,6 +12,8 @@ import { useUserStore } from "@/lib/stores/user-store";
 import { useConvexUser } from "@/lib/hooks/useConvexUser";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { t } from "@/lib/translations";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 const NAV_ITEM_DEFS = [
   { href: "/dashboard", labelKey: "home", icon: Home },
@@ -28,7 +30,11 @@ export default function DashboardLayout({ children }) {
   const user = useUserStore((s) => s.user);
   const { language } = useLanguage();
   // Sync Convex user data into Zustand on every dashboard visit
-  useConvexUser();
+  const { convexUser } = useConvexUser();
+  const profilePhotoUrl = useQuery(
+    api.users.getPhotoUrl,
+    convexUser?.profilePhotoStorageId ? { storageId: convexUser.profilePhotoStorageId } : "skip"
+  );
 
   const NAV_ITEMS = NAV_ITEM_DEFS.map((item) => ({
     ...item,
@@ -159,10 +165,13 @@ export default function DashboardLayout({ children }) {
               flexShrink: 0,
               border: "none",
               padding: 0,
+              overflow: "hidden",
             }}
             aria-label="View profile"
           >
-            {user.initials ? (
+            {profilePhotoUrl ? (
+              <img src={profilePhotoUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
+            ) : user.initials ? (
               <span
                 style={{
                   fontFamily: "var(--font-outfit, 'Outfit', sans-serif)",

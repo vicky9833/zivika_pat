@@ -33,12 +33,18 @@ function cleanAIResponse(text) {
     .replace(/â€˜/g, "'")
     .replace(/Ã©/g, 'é')
     .replace(/âš /g, '⚠')
-    .replace(/â†'/g, '→')
-    // Remove markdown formatting symbols
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/\*(.*?)\*/g, '$1')
-    .replace(/#{1,6}\s/g, '')
-    .replace(/`{1,3}(.*?)`{1,3}/g, '$1')
+    // Remove markdown bold/italic (keep content)
+    .replace(/\*{1,3}(.*?)\*{1,3}/g, '$1')
+    .replace(/_{1,2}(.*?)_{1,2}/g, '$1')
+    // Remove markdown headers
+    .replace(/#{1,6}\s+/g, '')
+    // Remove inline code and code blocks
+    .replace(/`{1,3}([\s\S]*?)`{1,3}/g, '$1')
+    // Remove markdown links [text](url) → text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Remove bullet/number list prefixes (voice doesn't need them)
+    .replace(/^[-•·]\s+/gm, '')
+    .replace(/^\d+\.\s+/gm, '')
     // Clean multiple newlines
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -53,6 +59,32 @@ Use plain numbered lists (1. 2. 3.) if needed.
 Use plain dashes (-) for bullet points.
 Never use ** for bold — write naturally.
 Write as if speaking to a person in a conversation.
+`;
+
+// Language detection + voice-friendly output rules injected into copilot/doctor prompts
+const LANGUAGE_AND_VOICE_RULES = `
+LANGUAGE DETECTION RULE (CRITICAL):
+Detect the language from the user's latest message.
+If they write in Hindi — respond entirely in Hindi (Devanagari script).
+If they write in Kannada — respond entirely in Kannada.
+If they write in Tamil — respond entirely in Tamil.
+If they write in Telugu — respond entirely in Telugu.
+If they write in Bengali — respond entirely in Bengali.
+If they write in Marathi — respond entirely in Marathi.
+If they write in English — respond in clear, simple English.
+Always match the user's language exactly. Never mix languages unless the user does.
+Use respectful forms: use 'Aap' in Hindi (not 'Tum' or 'Tu').
+
+VOICE-FRIENDLY FORMAT (CRITICAL):
+Your response will be spoken aloud by a voice assistant to the user.
+- Write complete, natural sentences only — no bullet points, no dashes
+- No asterisks, no hash symbols, no markdown of any kind
+- No numbered lists — use flowing prose instead
+- Use commas and short sentences for natural speech pauses
+- Keep sentences short and clear — one idea per sentence
+- Maximum 4 short paragraphs
+- End with one warm, encouraging sentence
+- For Indian languages: spell out numbers as words (e.g. teen sau for 300, not 300)
 `;
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -266,7 +298,7 @@ function languageInstruction(lang) {
 function buildCopilotPrompt(patientContext, language) {
   return `You are Zivika â€” a personal health companion built for Indian users.
 You are NOT a doctor. You are a trusted, knowledgeable health guide.
-${PLAIN_TEXT_RULE}${LEGAL_COMPLIANCE}
+${PLAIN_TEXT_RULE}${LANGUAGE_AND_VOICE_RULES}${LEGAL_COMPLIANCE}
 
 PATIENT CONTEXT:
 ${patientContext || "New user â€” no health data available yet."}
@@ -309,7 +341,7 @@ ${languageInstruction(language)}`;
 function buildDoctorPrompt(language) {
   return `You are Zivika Health Assistant â€” a knowledgeable AI health guide for Indian users.
 You help people understand health. You are NOT a doctor and do not replace one.
-${PLAIN_TEXT_RULE}${LEGAL_COMPLIANCE}
+${PLAIN_TEXT_RULE}${LANGUAGE_AND_VOICE_RULES}${LEGAL_COMPLIANCE}
 
 YOUR DEEP EXPERTISE:
 - Common Indian conditions: Type 2 diabetes, hypertension, thyroid (hypothyroid/hyperthyroid), PCOD/PCOS, anaemia (iron/B12/folate), vitamin D deficiency, fatty liver (NAFLD), kidney stones, dengue, typhoid, gastritis, IBS, obesity

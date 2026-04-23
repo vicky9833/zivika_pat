@@ -18,6 +18,7 @@ import { AlertTriangle, Download, UserRound, Camera } from "lucide-react";
 import { useRecordsStore } from "@/lib/stores/records-store";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { useConvexUser } from "@/lib/hooks/useConvexUser";
 
 const H = "var(--font-outfit, 'Outfit', sans-serif)";
 const B = "var(--font-dm-sans, 'DM Sans', sans-serif)";
@@ -26,6 +27,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const { signOut } = useClerk();
   const { user: clerkUser } = useUser();
+  const { convexUser } = useConvexUser();
   const user = useUserStore((s) => s.user);
   const records = useRecordsStore((s) => s.records);
   const vitalsReadings = useVitalsStore((s) => s.readings);
@@ -45,6 +47,13 @@ export default function ProfilePage() {
     api.users.getPhotoUrl,
     photoStorageId ? { storageId: photoStorageId } : "skip"
   );
+
+  // Sync photo from Convex on mount and when convexUser loads
+  useEffect(() => {
+    if (convexUser?.profilePhotoStorageId && !photoStorageId) {
+      setPhotoStorageId(convexUser.profilePhotoStorageId);
+    }
+  }, [convexUser?.profilePhotoStorageId]);
 
   useEffect(() => { const timer = setTimeout(() => setLoading(false), 400); return () => clearTimeout(timer); }, []);
 

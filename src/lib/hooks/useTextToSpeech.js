@@ -21,42 +21,52 @@ export function useTextToSpeech() {
   const speak = useCallback((text, language = "en") => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
 
-    // Cancel any current speech
     window.speechSynthesis.cancel();
 
     const langCode = VOICE_LANGUAGE_CODES[language] || "en-IN";
 
-    // Clean text: strip markdown and limit length for TTS
+    // Strip all markdown symbols + limit to 800 chars for natural TTS pacing
     const cleanText = text
       .replace(/[*#`]/g, "")
       .replace(/\n+/g, ". ")
-      .substring(0, 1000);
+      .substring(0, 800);
 
     if (!cleanText.trim()) return;
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utteranceRef.current = utterance;
     utterance.lang = langCode;
-    utterance.rate = 0.9;
-    utterance.pitch = 1.0;
+    utterance.rate = 0.85;   // Slightly slower for clarity
+    utterance.pitch = 1.1;   // Slightly higher for a warmer female-sounding default
     utterance.volume = 1.0;
 
-    // Pick a voice matching the language if available
-    const trySetVoice = () => {
+    // Prefer a female Indian voice (Raveena / Aditi / Priya or any non-male)
+    const setFemaleVoice = () => {
       const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find(
-        (v) =>
-          v.lang === langCode ||
-          v.lang.startsWith(langCode.split("-")[0])
-      );
-      if (preferred) utterance.voice = preferred;
+
+      const femaleVoice =
+        // 1. Exact lang + explicitly female label
+        voices.find(v => v.lang === langCode && v.name.toLowerCase().includes("female")) ||
+        // 2. Exact lang + NOT explicitly male (default female voice)
+        voices.find(v => v.lang === langCode && !v.name.toLowerCase().includes("male")) ||
+        // 3. Named Indian female voices in any en-* lang
+        voices.find(v => v.lang.startsWith("en") && (
+          v.name.includes("Raveena") ||
+          v.name.includes("Aditi") ||
+          v.name.includes("Priya") ||
+          v.name.toLowerCase().includes("female")
+        )) ||
+        // 4. Any voice starting with same primary language
+        voices.find(v => v.lang.startsWith(langCode.split("-")[0])) ||
+        null;
+
+      if (femaleVoice) utterance.voice = femaleVoice;
     };
 
-    // Voices may load asynchronously
     if (window.speechSynthesis.getVoices().length > 0) {
-      trySetVoice();
+      setFemaleVoice();
     } else {
-      window.speechSynthesis.onvoiceschanged = trySetVoice;
+      window.speechSynthesis.onvoiceschanged = setFemaleVoice;
     }
 
     utterance.onstart = () => setIsSpeaking(true);

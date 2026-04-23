@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { motion } from "framer-motion";
 import { Stethoscope, Volume2, VolumeX } from "lucide-react";
@@ -7,30 +7,29 @@ import { useTextToSpeech } from "@/lib/hooks/useTextToSpeech";
 const B = "var(--font-dm-sans, 'DM Sans', sans-serif)";
 
 function formatTime(date) {
+  if (!date) return "";
   const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return "";
   return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
 /**
- * Minimal markdown renderer:
- * - **bold** between double-asterisks
- * - Lines starting with • rendered as separate blocks
- * - Blank lines create paragraph spacing
+ * Minimal markdown â†’ plain-text renderer.
+ * Since AI responses are now plain-text (PLAIN_TEXT_RULE), this is mostly
+ * passthrough but still handles any residual **bold** or bullet lines.
  */
 function renderText(text, isUser) {
-  const lines = text.split("\n");
+  const lines = (text || "").split("\n");
   return lines.map((line, li) => {
     const parts = line.split(/\*\*(.*?)\*\*/g);
     const rendered = parts.map((part, pi) =>
       pi % 2 === 1 ? (
-        <strong key={pi} style={{ fontWeight: 700 }}>
-          {part}
-        </strong>
+        <strong key={pi} style={{ fontWeight: 700 }}>{part}</strong>
       ) : (
         <span key={pi}>{part}</span>
       )
     );
-    const isBullet = line.trim().startsWith("•");
+    const isBullet = line.trim().startsWith("â€¢") || line.trim().startsWith("-");
     const isEmpty = line.trim() === "";
     return (
       <span
@@ -49,18 +48,29 @@ function renderText(text, isUser) {
 }
 
 /**
- * ChatBubble — renders a single chat message.
+ * ChatBubble â€” renders a single chat message.
  *
  * Props:
  *  role        "user" | "assistant"
- *  text        message string (supports **bold** and • bullets)
- *  timestamp   Date object
- *  showAvatar  bool — show the 🌿 icon for first message in an assistant sequence
- *  language    string — language code for TTS (default "en")
+ *  text        message string
+ *  timestamp   Date object or number
+ *  showAvatar  bool â€” show AI avatar for first in a sequence
+ *  language    string â€” language code for TTS (default "en")
+ *  onSpeak     optional override function(text) â€” if provided, called instead of internal TTS
  */
-export default function ChatBubble({ role, text, timestamp, showAvatar, language = "en" }) {
+export default function ChatBubble({ role, text, timestamp, showAvatar, language = "en", onSpeak }) {
   const isUser = role === "user";
   const { isSpeaking, speak, stopSpeaking } = useTextToSpeech();
+
+  function handleSpeak() {
+    if (isSpeaking) {
+      stopSpeaking();
+    } else if (onSpeak) {
+      onSpeak(text);
+    } else {
+      speak(text, language);
+    }
+  }
 
   return (
     <motion.div
@@ -71,32 +81,30 @@ export default function ChatBubble({ role, text, timestamp, showAvatar, language
         display: "flex",
         flexDirection: "column",
         alignItems: isUser ? "flex-end" : "flex-start",
-        marginBottom: 2,
+        marginBottom: 4,
       }}
     >
+      {/* â”€â”€ Message row (avatar + bubble) â”€â”€ */}
       <div
         style={{
           display: "flex",
           alignItems: "flex-end",
           gap: 8,
           flexDirection: isUser ? "row-reverse" : "row",
+          maxWidth: isUser ? "80%" : "85%",
         }}
       >
-        {/* Assistant avatar — placeholder slot keeps alignment consistent */}
+        {/* Assistant avatar */}
         {!isUser && (
           <div
             style={{
-              width: 28,
-              height: 28,
-              borderRadius: "50%",
+              width: 28, height: 28, borderRadius: "50%",
               background: showAvatar
                 ? "linear-gradient(135deg, #0D6E4F, #00C9A7)"
                 : "transparent",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              display: "flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0,
-              marginBottom: 4,
+              alignSelf: "flex-end",
               opacity: showAvatar ? 1 : 0,
             }}
           >
@@ -104,10 +112,10 @@ export default function ChatBubble({ role, text, timestamp, showAvatar, language
           </div>
         )}
 
+        {/* Bubble */}
         <div
+          className="chat-text-content"
           style={{
-            maxWidth: isUser ? "80%" : "85%",
-            minWidth: 60,
             background: isUser
               ? "linear-gradient(135deg, #0D6E4F, #065F46)"
               : "#fff",
@@ -115,54 +123,60 @@ export default function ChatBubble({ role, text, timestamp, showAvatar, language
             padding: "12px 16px",
             border: isUser ? "none" : "1px solid #DCE8E2",
             boxShadow: isUser ? "none" : "0 2px 8px rgba(0,0,0,0.04)",
-            fontFamily: B,
+            fontFamily: "var(--font-dm-sans), var(--font-devanagari), 'Noto Sans Devanagari', sans-serif",
             fontSize: "0.875rem",
-            lineHeight: 1.5,
+            lineHeight: 1.6,
             wordBreak: "break-word",
+            minWidth: 60,
           }}
         >
-          <div className="chat-text-content" style={{ fontFamily: `var(--font-dm-sans), var(--font-devanagari), 'Noto Sans Devanagari', sans-serif` }}>
-            {renderText(text, isUser)}
-          </div>
-          {/* TTS speaker button — assistant messages only */}
-          {!isUser && (
-            <button
-              onClick={() => isSpeaking ? stopSpeaking() : speak(text, language)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 28,
-                height: 28,
-                borderRadius: "50%",
-                background: "rgba(13,110,79,0.08)",
-                border: "none",
-                cursor: "pointer",
-                marginTop: 8,
-                flexShrink: 0,
-              }}
-              aria-label={isSpeaking ? "Stop speaking" : "Read aloud"}
-            >
-              {isSpeaking
-                ? <VolumeX size={14} color="#0D6E4F" />
-                : <Volume2 size={14} color="#0D6E4F" />}
-            </button>
-          )}
+          {renderText(text, isUser)}
         </div>
       </div>
 
-      {/* Timestamp */}
-      <p
+      {/* â”€â”€ Bottom row: timestamp + speaker (assistant only) â”€â”€ */}
+      <div
         style={{
-          fontFamily: B,
-          fontSize: "0.63rem",
-          color: "#B8D4C5",
-          margin: "3px 0 0",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginTop: 4,
           paddingLeft: !isUser ? 36 : 0,
+          paddingRight: isUser ? 0 : 0,
+          flexDirection: isUser ? "row-reverse" : "row",
         }}
       >
-        {formatTime(timestamp)}
-      </p>
+        <span
+          style={{
+            fontFamily: B,
+            fontSize: "0.63rem",
+            color: "#B8D4C5",
+          }}
+        >
+          {formatTime(timestamp)}
+        </span>
+
+        {/* Speaker button â€” only for assistant messages */}
+        {!isUser && (
+          <button
+            onClick={handleSpeak}
+            style={{
+              width: 24, height: 24, borderRadius: "50%",
+              background: isSpeaking ? "rgba(13,110,79,0.15)" : "rgba(13,110,79,0.08)",
+              border: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              padding: 0, flexShrink: 0,
+              transition: "background 0.15s",
+            }}
+            title={isSpeaking ? "Stop audio" : "Play audio"}
+            aria-label={isSpeaking ? "Stop speaking" : "Read aloud"}
+          >
+            {isSpeaking
+              ? <VolumeX size={12} color="#0D6E4F" />
+              : <Volume2 size={12} color="#0D6E4F" />}
+          </button>
+        )}
+      </div>
     </motion.div>
   );
 }

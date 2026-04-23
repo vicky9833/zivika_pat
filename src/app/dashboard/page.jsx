@@ -20,6 +20,9 @@ import { useRecordsStore } from "@/lib/stores/records-store";
 import { computeTwinScores } from "@/lib/twin-engine";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { t } from "@/lib/translations";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { useConvexUser } from "@/lib/hooks/useConvexUser";
 
 /* ─── Utilities ──────────────────────────────────────────────────────────── */
 function getHumanGreeting(firstName, meds, language) {
@@ -239,6 +242,7 @@ function QuickActionCard({ icon: Icon, iconColor, label, subtitle, href, router 
         cursor: "pointer",
         position: "relative",
         minWidth: 0,
+        overflow: "hidden",
       }}
     >
       <ArrowUpRight size={14} color="#8EBAA3" style={{ position: "absolute", top: 12, right: 12 }} />
@@ -541,10 +545,16 @@ const HEALTH_FACTS = [
 
 function getGreetingGradient() {
   const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12) return "linear-gradient(135deg, #0D6E4F 0%, #065F46 100%)";
-  if (hour >= 12 && hour < 17) return "linear-gradient(135deg, #065F46 0%, #0D9488 100%)";
-  if (hour >= 17 && hour < 21) return "linear-gradient(135deg, #0D6E4F 0%, #0D3D6E 100%)";
-  return "linear-gradient(135deg, #0B1F18 0%, #0F172A 100%)";
+  if (hour >= 5 && hour < 12) {
+    return "linear-gradient(135deg, #0D6E4F 0%, #065F46 100%)";
+  } else if (hour >= 12 && hour < 17) {
+    return "linear-gradient(135deg, #065F46 0%, #0D6E4F 60%, #0891B2 100%)";
+  } else if (hour >= 17 && hour < 21) {
+    return "linear-gradient(135deg, #0D6E4F 0%, #065F46 70%, #7C3AED 100%)";
+  } else {
+    // Night: deep green ONLY - never black or dark indigo
+    return "linear-gradient(135deg, #0D6E4F 0%, #065F46 100%)";
+  }
 }
 
 const BREATH_PHASES = ["inhale", "hold", "exhale", "hold"];
@@ -738,6 +748,11 @@ export default function DashboardHome() {
   const router = useRouter();
   const { language } = useLanguage();
   const user = useUserStore((s) => s.user);
+  const { convexUser } = useConvexUser();
+  const profilePhotoUrl = useQuery(
+    api.users.getPhotoUrl,
+    convexUser?.profilePhotoStorageId ? { storageId: convexUser.profilePhotoStorageId } : "skip"
+  );
   const vitalsReadings = useVitalsStore((s) => s.readings);
   const getLatestVitals = useVitalsStore((s) => s.getLatestVitals);
   const latestVitals = useMemo(() => getLatestVitals(), [vitalsReadings]);
@@ -846,10 +861,15 @@ export default function DashboardHome() {
           border: "2px solid rgba(255,255,255,0.30)",
           display: "flex", alignItems: "center", justifyContent: "center",
           zIndex: 1,
+          overflow: "hidden",
         }}>
-          <span style={{ fontFamily: H, fontWeight: 700, fontSize: "1rem", color: "#fff" }}>
-            {userInitials}
-          </span>
+          {profilePhotoUrl ? (
+            <img src={profilePhotoUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
+          ) : (
+            <span style={{ fontFamily: H, fontWeight: 700, fontSize: "1rem", color: "#fff" }}>
+              {userInitials}
+            </span>
+          )}
         </div>
 
         {/* Top row: text */}
@@ -973,7 +993,7 @@ export default function DashboardHome() {
         style={{ marginBottom: 24 }}
       >
         <SectionHeader title={t("quickActions", language)} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, overflow: "hidden" }}>
           <QuickActionCard icon={Camera}        iconColor="#0D6E4F" label={t("scanReport", language)}    subtitle={t("scanSubtitle", language)}    href="/dashboard/scan"     router={router} />
           <QuickActionCard icon={MessageCircle} iconColor="#2563EB" label={t("askCopilot", language)}    subtitle={t("copilotSubtitle", language)}  href="/dashboard/copilot"  router={router} />
           <QuickActionCard icon={ClipboardList} iconColor="#F39C12" label={t("checkSymptoms", language)} subtitle={t("symptomsSubtitle", language)} href="/dashboard/symptoms" router={router} />
