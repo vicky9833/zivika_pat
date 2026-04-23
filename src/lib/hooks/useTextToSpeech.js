@@ -1,16 +1,6 @@
 "use client";
 import { useState, useRef, useCallback } from "react";
 
-const VOICE_LANGUAGE_CODES = {
-  en: "en-IN",
-  hi: "hi-IN",
-  kn: "kn-IN",
-  ta: "ta-IN",
-  te: "te-IN",
-  bn: "bn-IN",
-  mr: "mr-IN",
-};
-
 export function useTextToSpeech() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const utteranceRef = useRef(null);
@@ -23,57 +13,86 @@ export function useTextToSpeech() {
 
     window.speechSynthesis.cancel();
 
-    const langCode = VOICE_LANGUAGE_CODES[language] || "en-IN";
+    const LANG_CODES = {
+      en: "en-IN",
+      hi: "hi-IN",
+      kn: "kn-IN",
+      ta: "ta-IN",
+      te: "te-IN",
+      bn: "bn-IN",
+      mr: "mr-IN",
+    };
 
-    // Strip all markdown symbols + limit to 800 chars for natural TTS pacing
     const cleanText = text
-      .replace(/[*#`]/g, "")
+      .replace(/[*#`\[\]]/g, "")
       .replace(/\n+/g, ". ")
-      .substring(0, 800);
+      .substring(0, 400)
+      .trim();
 
-    if (!cleanText.trim()) return;
+    if (!cleanText) return;
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utteranceRef.current = utterance;
-    utterance.lang = langCode;
-    utterance.rate = 0.85;   // Slightly slower for clarity
-    utterance.pitch = 1.1;   // Slightly higher for a warmer female-sounding default
+
+    utterance.lang = LANG_CODES[language] || "en-IN";
+    utterance.rate = 0.85;
+    utterance.pitch = 1.05;
     utterance.volume = 1.0;
 
-    // Prefer a female Indian voice (Raveena / Aditi / Priya or any non-male)
-    const setFemaleVoice = () => {
+    const selectVoice = () => {
       const voices = window.speechSynthesis.getVoices();
+      const targetLang = LANG_CODES[language] || "en-IN";
 
-      const femaleVoice =
-        // 1. Exact lang + explicitly female label
-        voices.find(v => v.lang === langCode && v.name.toLowerCase().includes("female")) ||
-        // 2. Exact lang + NOT explicitly male (default female voice)
-        voices.find(v => v.lang === langCode && !v.name.toLowerCase().includes("male")) ||
-        // 3. Named Indian female voices in any en-* lang
-        voices.find(v => v.lang.startsWith("en") && (
-          v.name.includes("Raveena") ||
-          v.name.includes("Aditi") ||
-          v.name.includes("Priya") ||
-          v.name.toLowerCase().includes("female")
-        )) ||
-        // 4. Any voice starting with same primary language
-        voices.find(v => v.lang.startsWith(langCode.split("-")[0])) ||
+      const voice =
+        // 1. Exact language match + female name
+        voices.find(v =>
+          v.lang === targetLang &&
+          /female|woman|girl/i.test(v.name)) ||
+        // 2. Exact language match any
+        voices.find(v => v.lang === targetLang) ||
+        // 3. Named Indian female voices (Raveena, Aditi, Priya etc)
+        voices.find(v =>
+          v.lang === "en-IN" &&
+          /raveena|aditi|priya|neerja|heera/i.test(v.name)) ||
+        // 4. Any Indian English voice
+        voices.find(v => v.lang === "en-IN") ||
+        // 5. Language family match
+        voices.find(v =>
+          v.lang.startsWith(language === "en" ? "en" : language)) ||
+        // 6. Any English female
+        voices.find(v =>
+          v.lang.startsWith("en") &&
+          /female|woman/i.test(v.name)) ||
+        // 7. First available
+        voices[0] ||
         null;
 
-      if (femaleVoice) utterance.voice = femaleVoice;
+      if (voice) {
+        utterance.voice = voice;
+        // Slow down slightly when using English voice for non-English script
+        if (language !== "en" && voice.lang.startsWith("en")) {
+          utterance.rate = 0.8;
+        }
+      }
     };
 
     if (window.speechSynthesis.getVoices().length > 0) {
-      setFemaleVoice();
+      selectVoice();
     } else {
-      window.speechSynthesis.onvoiceschanged = setFemaleVoice;
+      window.speechSynthesis.addEventListener("voiceschanged", selectVoice, { once: true });
     }
 
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+    utterance.onerror = (e) => {
+      console.warn("TTS error:", e.error);
+      setIsSpeaking(false);
+    };
 
-    window.speechSynthesis.speak(utterance);
+    // Small delay for reliability on Android Chrome
+    setTimeout(() => {
+      window.speechSynthesis.speak(utterance);
+    }, 50);
   }, []);
 
   const stopSpeaking = useCallback(() => {

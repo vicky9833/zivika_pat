@@ -381,7 +381,7 @@ function CopilotPageInner() {
             flexDirection: "column",
             alignItems: "center",
             padding: "40px 20px",
-            paddingBottom: "200px",
+            paddingBottom: "280px",
           }}
         >
           <motion.div
@@ -447,7 +447,7 @@ function CopilotPageInner() {
             display: "flex",
             flexDirection: "column",
             gap: 10,
-            paddingBottom: "200px",
+            paddingBottom: "280px",
           }}
         >
           {displayMessages.map((msg, i) => {

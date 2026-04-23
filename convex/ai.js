@@ -204,7 +204,7 @@ async function callGemini(model, contents, config = {}) {
 
   // 30-second timeout so we fall back to Groq promptly on slow/broken keys
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
 
   let response;
   try {
@@ -575,9 +575,32 @@ export const chat = action({
       })),
     ];
 
+    // Validate and fix Gemini contents: must start with user, must alternate roles
+    function validateAndFixContents(raw) {
+      if (!raw || raw.length === 0) return raw;
+      let arr = raw[0].role !== "user"
+        ? [{ role: "user", parts: [{ text: "Hello" }] }, ...raw]
+        : [...raw];
+      const fixed = [arr[0]];
+      for (let i = 1; i < arr.length; i++) {
+        if (arr[i].role === fixed[fixed.length - 1].role) {
+          // Merge consecutive same-role turns
+          fixed[fixed.length - 1].parts[0].text += " " + arr[i].parts[0].text;
+        } else {
+          fixed.push(arr[i]);
+        }
+      }
+      if (fixed[fixed.length - 1].role !== "user") {
+        fixed.push({ role: "user", parts: [{ text: "Please respond." }] });
+      }
+      return fixed;
+    }
+
+    const validContents = validateAndFixContents(contents);
+
     // PRIMARY: Gemini Flash — low temperature for reliable script following
     try {
-      const text = await callGemini(GEMINI_MODELS.FLASH, contents, { maxTokens: 120, temperature: 0.3 });
+      const text = await callGemini(GEMINI_MODELS.FLASH, validContents, { maxTokens: 120, temperature: 0.3 });
       return { content: cleanAIResponse(text), model: GEMINI_MODELS.FLASH };
     } catch (geminiErr) {
       console.error("Gemini chat failed:", geminiErr.message);
