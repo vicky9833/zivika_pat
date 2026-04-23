@@ -21,7 +21,7 @@ import { computeTwinScores } from "@/lib/twin-engine";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { t } from "@/lib/translations";
 import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "../../../convex/_generated/api";
 import { useConvexUser } from "@/lib/hooks/useConvexUser";
 
 /* ─── Utilities ──────────────────────────────────────────────────────────── */
