@@ -1,4 +1,4 @@
-﻿/*
+/*
 GEMINI USAGE OPTIMIZATION:
 - Flash model (gemini-2.0-flash): copilot chat, symptoms, report scan
   ~$0.000075 per 1K input tokens = very cheap
@@ -6,7 +6,7 @@ GEMINI USAGE OPTIMIZATION:
   ~$0.00125 per 1K input tokens = moderate
 - Vision (gemini-2.0-flash): same Flash model handles images
 
-With â‚¹22,000 Gemini credits:
+With Rs.22,000 Gemini credits:
 - ~1 million copilot responses (Flash)
 - ~200,000 report scans
 - Enough for a strong beta with thousands of users
@@ -19,20 +19,20 @@ MONITOR USAGE: console.cloud.google.com/apis/api/generativelanguage
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 
-// ── Clean AI response text before returning to client ─────────────────────
+//  Clean AI response text before returning to client 
 // Fixes mojibake (garbled Unicode) and strips markdown symbols.
 function cleanAIResponse(text) {
   if (!text) return text;
   return text
     // Fix broken Unicode arrows and symbols (UTF-8 mojibake)
-    .replace(/â†'/g, '\u2192')
-    .replace(/â€™/g, '\u2019')
-    .replace(/â€œ/g, '\u201C')
-    .replace(/â€/g, '\u201D')
-    .replace(/â€"/g, '\u2014')
-    .replace(/â€˜/g, '\u2018')
-    .replace(/Ã©/g, '\u00E9')
-    .replace(/âš /g, '\u26A0')
+    .replace(/->/g, '\u2192')
+    .replace(/'/g, '\u2019')
+    .replace(/"/g, '\u201C')
+    .replace(/"/g, '\u201D')
+    .replace(/ - /g, '\u2014')
+    .replace(/"/g, '\u2018')
+    .replace(/e/g, '\u00E9')
+    .replace(/WARNING/g, '\u26A0')
     // Remove markdown bold/italic (keep content)
     .replace(/\*{1,3}(.*?)\*{1,3}/g, '$1')
     .replace(/_{1,2}(.*?)_{1,2}/g, '$1')
@@ -40,7 +40,7 @@ function cleanAIResponse(text) {
     .replace(/#{1,6}\s+/g, '')
     // Remove inline code and code blocks
     .replace(/`{1,3}([\s\S]*?)`{1,3}/g, '$1')
-    // Remove markdown links [text](url) → text
+    // Remove markdown links [text](url)  text
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     // Remove bullet/number list prefixes (voice doesn't need them)
     .replace(/^[-\u2022\u00B7]\s+/gm, '')
@@ -57,7 +57,7 @@ Respond in plain text only. No markdown formatting.
 No asterisks for bold (**word**), no hashtags for headers (#), no backticks for code.
 Use plain numbered lists (1. 2. 3.) if needed.
 Use plain dashes (-) for bullet points.
-Never use ** for bold — write naturally.
+Never use ** for bold  write naturally.
 Write as if speaking to a person in a conversation.
 `;
 
@@ -68,7 +68,7 @@ You MUST write in the NATIVE SCRIPT of the user's language. Never romanize.
 
 - If user writes in Hindi: respond ONLY in Devanagari script.
   CORRECT: "\u0906\u092A\u0915\u093E \u0930\u0915\u094D\u0924\u091A\u093E\u092A \u0920\u0940\u0915 \u0939\u0948\u0964"
-  WRONG: "Aapka raktaap theek hai." (this is romanized — FORBIDDEN)
+  WRONG: "Aapka raktaap theek hai." (this is romanized  FORBIDDEN)
 
 - If user writes in Kannada: respond ONLY in Kannada script.
   CORRECT: "\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C86\u0CB0\u0CCB\u0C97\u0CCD\u0CAF \u0C9A\u0CC6\u0CA8\u0CCD\u0CA8\u0CBE\u0C97\u0CBF\u0CA6\u0CC6\u0CCD."
@@ -94,19 +94,19 @@ You MUST write in the NATIVE SCRIPT of the user's language. Never romanize.
 
 VOICE-FRIENDLY FORMAT (CRITICAL):
 Your response will be spoken aloud by a voice assistant.
-- Write complete, natural sentences only — no bullet points, no dashes
+- Write complete, natural sentences only  no bullet points, no dashes
 - No asterisks, no hash symbols, no markdown of any kind
-- No numbered lists — use flowing prose instead
+- No numbered lists  use flowing prose instead
 - Use commas and short sentences for natural speech pauses
-- Keep sentences short and clear — one idea per sentence
+- Keep sentences short and clear  one idea per sentence
 - Maximum 4 short paragraphs
 - End with one warm, encouraging sentence
 `;
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // GEMINI MODEL CONFIGURATION
 // Primary AI: Google Gemini 2.0 Flash / 1.5 Pro
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 
 const GEMINI_MODELS = {
   FLASH:       "gemini-2.0-flash",  // Fast & cheap: copilot, symptoms, report scan
@@ -129,13 +129,13 @@ const GROQ_VISION_MODELS = [
   "llama-3.2-11b-vision-preview",
 ];
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // INDIA HEALTHCARE LEGAL COMPLIANCE
 // Telemedicine Practice Guidelines 2020 (MoHFW) + DPDP Act 2023
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 
 const LEGAL_COMPLIANCE = `
-LEGAL CONTEXT (India â€” Telemedicine Practice Guidelines 2020, MoHFW):
+LEGAL CONTEXT (India " Telemedicine Practice Guidelines 2020, MoHFW):
 You MUST always:
 - Recommend consulting a qualified registered doctor (MBBS or above, MCI/NMC registered)
 - Never prescribe medicines, doses, or schedules
@@ -150,9 +150,9 @@ You must NEVER:
 - Make definitive diagnostic claims
 `;
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // EMERGENCY DETECTION
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 
 const EMERGENCY_KEYWORDS = [
   "chest pain", "heart attack", "stroke", "can't breathe", "cannot breathe",
@@ -167,20 +167,20 @@ function detectEmergency(text) {
   return EMERGENCY_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-const EMERGENCY_RESPONSE = `âš ï¸ EMERGENCY: Please call 108 (Ambulance) or 112 (Emergency Services) RIGHT NOW. Do not wait.
+const EMERGENCY_RESPONSE = ` EMERGENCY: Please call 108 (Ambulance) or 112 (Emergency Services) RIGHT NOW. Do not wait.
 
 While waiting for emergency help:
 - Keep the person calm and still
 - Do not give food, water, or any medication
 - Loosen tight clothing
-- Stay on the line with emergency services â€” they will guide you
+- Stay on the line with emergency services " they will guide you
 - If the person is unconscious and not breathing, begin CPR if you know how
 
 Please call 108 or 112 immediately. Every second matters.`;
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // GEMINI API CALLER
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 
 async function callGemini(model, contents, config = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -229,9 +229,9 @@ async function callGemini(model, contents, config = {}) {
   return text;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // GROQ TEXT FALLBACK CALLER
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 
 async function callGroqText(messages, maxTokens = 600) {
   const apiKey = process.env.GROQ_API_KEY;
@@ -295,9 +295,9 @@ async function callGroqVision(imageBase64, mimeType, prompt, maxTokens = 1500) {
   throw new Error("All Groq vision models failed");
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // WORLD-CLASS SYSTEM PROMPTS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 
 function languageInstruction(lang) {
   return {
@@ -312,109 +312,76 @@ function languageInstruction(lang) {
 }
 
 function buildCopilotSystemPrompt(patientContext, language) {
-  const LANG_RULES = {
-    hi: `تم एक भारتیय स्वास्थ्य सहायक हो।
-हमेशा हिंदी में देवनागरी लिपि में जवाब दो।
-कभी भी रोमन अक्षरों में हिंदी मत लिखो।
-सही: "आपको पानी पीना चाहिए।"
-गलत: "Aapko paani peena chahiye."
-अधिकतम 3 छोटे वाक्य। अगर जरूरी हो تो एक सवाल पूछो।`,
-
-    kn: `ನೀವು ಭಾರತೀಯ ಆರೋಗ್ಯ ಸಹಾಯಕ.
-ಯಾವಾಗಲೂ ಕನ್ನಡ ಲಿಪಿಯಲ್ಲಿ ಉತ್ತರಿಸಿ.
-ರೋಮನ್ ಅಕ್ಷರಗಳಲ್ಲಿ ಕನ್ನಡ ಬರೆಯಬೇಡಿ.
-ಸರಿ: "ನೀವು ನೀರು ಕುಡಿಯಬೇಕು."
-ತಪ್ಪು: "Neevu neeru kudiyabeku."
-ಗರಿಷ್ಠ 3 ಚಿಕ್ಕ ವಾಕ್ಯಗಳು.`,
-
-    ta: `நீங்கள் ஒரு இந்திய சுகாதார உதவியாளர்.
-எப்போதும் தமிழ் எழுத்தில் பதிலளிக்கவும்.
-ஆங்கில எழுத்தில் தமிழ் எழுதாதீர்கள்.
-சரி: "நீங்கள் தண்ணீர் குடிக்க வேண்டும்."
-தவறு: "Neengal thanneer kudikka vendum."
-அதிகபட்சம் 3 சிறிய வாக்கியங்கள்.`,
-
-    te: `మీరు భారతీయ ఆరోగ్య సహాయకుడు.
-ఎల్లప్పుడూ తెలుగు లిపిలో సమాధానం ఇవ్వండి.
-రోమన్ అక్షరాలలో తెలుగు రాయకండి.
-సరైనది: "మీరు నీరు తాగాలి."
-తప్పు: "Meeru neeru taagaali."
-గరిష్టం 3 చిన్న వాక్యాలు.`,
-
-    bn: `আপনি একজন ভারতীয় স্বাস্থ্য সহায়ক।
-সর্বদা বাংলা লিপিতে উত্তর দিন।
-রোমান অক্ষরে বাংলা লিখবেন না।
-সঠিক: "আপনার জল পান করা উচিত।"
-ভুল: "Aapnar jal pan kora uchit."
-সর্বোচ্চ 3টি ছোট বাক্য।`,
-
-    mr: `تمۍهی एक भारتیय आरोग्य सहाय्यक आहाت.
-नेहमी मराठीت देवनागरी लिपीت उत्तर द्या.
-रोमन अक्षराت मराठी लिहू नका.
-बरोबर: "تمۍहی पाणी प्यायला हवे."
-चुकीचे: "Tumhi paani piyala have."
-जास्تीت जास्ت 3 लहान वाक्ये.`,
-
-    en: `You are a caring Indian health assistant.
-Reply in simple clear English.
-Maximum 2 sentences.
-Ask one follow-up question if needed.`,
+  const LANGUAGE_MAP = {
+    hi: "Hindi (Devanagari script only, never romanized)",
+    kn: "Kannada (Kannada script only, never romanized)",
+    ta: "Tamil (Tamil script only, never romanized)",
+    te: "Telugu (Telugu script only, never romanized)",
+    bn: "Bengali (Bengali script only, never romanized)",
+    mr: "Marathi (Devanagari script only, never romanized)",
+    en: "English (simple clear Indian English)",
   };
 
-  return `${LANG_RULES[language] || LANG_RULES.en}
+  const responseLang = LANGUAGE_MAP[language] || LANGUAGE_MAP.en;
 
-PATIENT DATA: ${patientContext || "New user."}
+  return `You are Zivika, a caring Indian health companion.
 
-RULES FOR ALL LANGUAGES:
-1. Maximum 2 sentences. Never more.
-2. No markdown. No asterisks. No bullet points.
-3. If question is unclear, ask ONE question only.
-4. Never prescribe medicines.
-5. Always recommend doctor for serious issues.
-6. For emergency symptoms: say call 108 immediately.
+LANGUAGE RULE (MOST IMPORTANT):
+You MUST respond in ${responseLang}.
+Never use Roman letters to write Indian language words.
+Never mix languages in one response.
+If user writes in a different language than selected, still respond in ${responseLang}.
 
-HOW TO RESPOND:
-Simple symptom like headache or fever:
-- Ask: when did it start, how severe, any other symptoms
-- Do NOT give long explanations first
-
-After they answer:
-- Give short practical advice
-- Say when to see a doctor`;
-}
-
-function buildDoctorSystemPrompt(language) {
-  const LANG_RULES = {
-    hi: "हिंदी में देवनागरी लिपि में जवाब दो। रोमन नहीं।",
-    kn: "ಕನ್ನಡ ಲಿಪಿಯಲ್ಲಿ ಉತ್ತರಿಸಿ. ರೋಮನ್ ಅಕ್ಷರ ಬೇಡ.",
-    ta: "தமிழ் எழுத்தில் பதிலளிக்கவும்.",
-    te: "తెలుగు లిపిలో సమాధానం ఇవ్వండి.",
-    bn: "বাংলা লিপিতে উত্তর দিন।",
-    mr: "मराठीت देवनागरी लिपीت उत्तर द्या.",
-    en: "Reply in simple clear English.",
-  };
-
-  return `${LANG_RULES[language] || LANG_RULES.en}
-
-You are Zivika — a knowledgeable Indian health guide.
-Not a doctor. A trusted health companion.
+PATIENT CONTEXT:
+${patientContext || "New user, no health data yet."}
 
 RESPONSE RULES:
-1. Maximum 2 short sentences always
-2. No markdown, no symbols, no bullet points
-3. Natural conversational language for voice
-4. Ask follow-up before giving long advice
-5. Never prescribe medicines or dosages
-6. Always say: consult your doctor for serious issues
-7. Emergency symptoms: call 108 immediately
+- Maximum 2 short sentences per response
+- If question is unclear, ask ONE clarifying question
+- No markdown, no asterisks, no bullet points
+- Natural conversational tone, like a caring family friend
+- Never prescribe medicines or specific dosages
+- Always recommend seeing a doctor for serious concerns
+- For emergencies: say call 108 immediately
 
-DETECT USER LANGUAGE:
-If user writes in Hindi script — respond in Hindi script
-If user writes in Kannada — respond in Kannada
-Match whatever script the user uses.`;
+HOW TO RESPOND:
+When user mentions a symptom: ask when it started and how severe.
+Do not give long explanations before asking.
+After they answer: give short practical advice in 1-2 sentences, then say when to see a doctor.
+
+You comply with India Telemedicine Guidelines 2020. Never diagnose definitively.`;
 }
+function buildDoctorSystemPrompt(language) {
+  const LANGUAGE_MAP = {
+    hi: "Hindi using Devanagari script only",
+    kn: "Kannada using Kannada script only",
+    ta: "Tamil using Tamil script only",
+    te: "Telugu using Telugu script only",
+    bn: "Bengali using Bengali script only",
+    mr: "Marathi using Devanagari script only",
+    en: "simple clear English",
+  };
 
+  const responseLang = LANGUAGE_MAP[language] || LANGUAGE_MAP.en;
 
+  return `You are Zivika, a knowledgeable Indian health guide.
+
+LANGUAGE RULE:
+Always respond in ${responseLang}.
+Never romanize Indian language words.
+Detect language from user message and match it.
+
+RULES:
+- Maximum 2 sentences always
+- No markdown formatting
+- No bullet points or symbols
+- Ask one question before giving long advice
+- Never prescribe medicines
+- Recommend doctor for serious issues
+- Emergency symptoms: say call 108 immediately
+
+You have deep knowledge of Indian health conditions, Indian diet, and Indian lifestyle context.`;
+}
 function buildReportAnalysisPrompt() {
   return `You are a medical document AI for Zivika Labs, an Indian health management platform.
 
@@ -424,9 +391,9 @@ RULES:
 - Extract all test names, values, units, and reference ranges shown
 - Identify abnormal values (outside reference range): mark status as "high", "low", or "critical"
 - Use Indian lab reference ranges where applicable (they differ from Western standards)
-- Write a 2-sentence summary any patient can understand â€” avoid jargon
+- Write a 2-sentence summary any patient can understand " avoid jargon
 - Mark urgent=true only for critically abnormal or dangerous values
-- For prescriptions: extract medicine name and strength ONLY â€” never include dose schedule
+- For prescriptions: extract medicine name and strength ONLY " never include dose schedule
 
 OUTPUT: Respond with ONLY valid JSON. No markdown. No explanation. Pure JSON only.
 
@@ -498,10 +465,10 @@ Analyse the patient data and generate exactly 3 personalised health insights.
 ${LEGAL_COMPLIANCE}
 
 EACH INSIGHT MUST BE:
-1. Based ONLY on the data provided â€” no fabrication
+1. Based ONLY on the data provided " no fabrication
 2. Actionable and specific to the data
 3. Written in simple language (not medical jargon)
-4. Constructive and encouraging in tone â€” never alarming
+4. Constructive and encouraging in tone " never alarming
 5. Relevant to Indian health context where applicable
 
 ICON OPTIONS: Heart | Activity | Moon | Droplets | TrendingUp | AlertTriangle | CheckCircle | Flame | Stethoscope
@@ -520,11 +487,11 @@ OUTPUT: Respond with ONLY a JSON array. No markdown. No explanation. Pure JSON a
 If there is insufficient data, return 3 insights that encourage the user to add more health data. Always be warm and encouraging.`;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // EXPORTED CONVEX ACTIONS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 
-// â”€â”€ 1. COPILOT / DOCTOR CHAT (used by useConvexChat hook) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  1. COPILOT / DOCTOR CHAT (used by useConvexChat hook) 
 // Returns { content, model } to maintain backward compatibility
 export const chat = action({
   args: {
@@ -538,7 +505,7 @@ export const chat = action({
     const language = args.language || "en";
     const lastMsg  = args.messages[args.messages.length - 1]?.content || "";
 
-    // Immediate emergency bypass â€” no AI call needed
+    // Immediate emergency bypass " no AI call needed
     if (detectEmergency(lastMsg)) {
       return { content: EMERGENCY_RESPONSE, model: "safety-filter" };
     }
@@ -550,14 +517,13 @@ export const chat = action({
 
     // Inject native-script instruction directly into the last user message
     const SCRIPT_INSTRUCTIONS = {
-      hi: "\u0939\u093F\u0902\u0926\u0940 \u092E\u0947\u0902 \u0909\u0924\u094D\u0924\u0930 \u0926\u0947\u0902\u0964 \u0915\u0947\u0935\u0932 \u0926\u0947\u0935\u0928\u093E\u0917\u0930\u0940 \u0932\u093F\u092A\u093F \u092E\u0947\u0902\u0964 \u0930\u094B\u092E\u0928 \u0905\u0915\u094D\u0937\u0930 \u092C\u093F\u0932\u094D\u0915\u0941\u0932 \u0928\u0939\u0940\u0902\u0964\n\n\u092A\u094D\u0930\u0936\u094D\u0928: ",
-      kn: "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1\u0CA6\u0CB2\u0CCD\u0CB2\u0CBF \u0C89\u0CA4\u0CCD\u0CA4\u0CB0\u0CBF\u0CB8\u0CBF. \u0C95\u0CA8\u0CCD\u0CA8\u0CA1 \u0CB2\u0CBF\u0CAA\u0CBF \u0CAE\u0CBE\u0CA4\u0CCD\u0CB0.\n\n\u0CAA\u0CCD\u0CB0\u0CB6\u0CCD\u0CA8\u0CC6: ",
-      ta: "\u0BA4\u0BAE\u0BBF\u0BB4\u0BBF\u0BB2\u0BCD \u0BAA\u0BA4\u0BBF\u0BB2\u0BB3\u0BBF\u0B95\u0BCD\u0B95\u0BB5\u0BC1\u0BAE\u0BCD. \u0BA4\u0BAE\u0BBF\u0BB4\u0BCD \u0B8E\u0BB4\u0BC1\u0BA4\u0BCD\u0BA4\u0BC1 \u0BAE\u0B9F\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD.\n\n\u0B95\u0BC7\u0BB3\u0BCD\u0BB5\u0BBF: ",
-      te: "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41\u0C32\u0C4B \u0C38\u0C2E\u0C3E\u0C27\u0C3E\u0C28\u0C02 \u0C07\u0C35\u0C4D\u0C35\u0C02\u0C21\u0C3F. \u0C24\u0C46\u0C32\u0C41\u0C17\u0C41 \u0C32\u0C3F\u0C2A\u0C3F \u0C2E\u0C3E\u0C24\u0C4D\u0C30\u0C2E\u0C47.\n\n\u0C2A\u0C4D\u0C30\u0C36\u0C4D\u0C28: ",
-      bn: "\u09AC\u09BE\u0982\u09B2\u09BE\u09AF\u09BC \u0989\u09A4\u09CD\u09A4\u09B0 \u09A6\u09BF\u09A8\u0964 \u09AC\u09BE\u0982\u09B2\u09BE \u09B2\u09BF\u09AA\u09BF \u09B6\u09C1\u09A7\u09C1\u09AE\u09BE\u09A4\u09CD\u09B0\u0964\n\n\u09AA\u09CD\u09B0\u09B6\u09CD\u09A8: ",
-      mr: "\u092E\u0930\u093E\u0920\u0940\u062A \u0909\u0924\u094D\u0924\u0930 \u0926\u094D\u092F\u093E. \u092B\u0915\u094D\u062A \u0926\u0947\u0935\u0928\u093E\u0917\u0930\u0940 \u0932\u093F\u092A\u0940\u062A.\n\n\u092A\u094D\u0930\u0936\u094D\u0928: ",
+      hi: "IMPORTANT: Respond ONLY in Hindi Devanagari script. Never use Roman letters for Hindi. Example wrong: 'Aapko paani peena chahiye'.\n\nUser question: ",
+      kn: "IMPORTANT: Respond ONLY in Kannada script. Never use Roman letters. Example wrong: 'Neevu neeru kudiyabeku'.\n\nUser question: ",
+      ta: "IMPORTANT: Respond ONLY in Tamil script. Never romanize Tamil.\n\nUser question: ",
+      te: "IMPORTANT: Respond ONLY in Telugu script. Never romanize Telugu.\n\nUser question: ",
+      bn: "IMPORTANT: Respond ONLY in Bengali script. Never romanize Bengali.\n\nUser question: ",
+      mr: "IMPORTANT: Respond ONLY in Marathi Devanagari script. Never romanize Marathi.\n\nUser question: ",
     };
-
     const prefix = SCRIPT_INSTRUCTIONS[language] || "";
     const lastUserMessage = args.messages[args.messages.length - 1];
     const modifiedLastMessage = prefix
@@ -565,7 +531,7 @@ export const chat = action({
       : lastUserMessage;
     const finalMessages = [...args.messages.slice(0, -1), modifiedLastMessage];
 
-    // Build Gemini contents — strictly alternating user/model roles
+    // Build Gemini contents  strictly alternating user/model roles
     const contents = [
       { role: "user",  parts: [{ text: systemPrompt }] },
       { role: "model", parts: [{ text: "Understood. I am ready to help." }] },
@@ -598,7 +564,7 @@ export const chat = action({
 
     const validContents = validateAndFixContents(contents);
 
-    // PRIMARY: Gemini Flash — low temperature for reliable script following
+    // PRIMARY: Gemini Flash  low temperature for reliable script following
     try {
       const text = await callGemini(GEMINI_MODELS.FLASH, validContents, { maxTokens: 120, temperature: 0.3 });
       return { content: cleanAIResponse(text), model: GEMINI_MODELS.FLASH };
@@ -606,7 +572,7 @@ export const chat = action({
       console.error("Gemini chat failed:", geminiErr.message);
     }
 
-    // FALLBACK: Groq — note: Indian language accuracy is poor in Groq
+    // FALLBACK: Groq  note: Indian language accuracy is poor in Groq
     try {
       const groqMessages = [
         { role: "system", content: systemPrompt },
@@ -616,20 +582,12 @@ export const chat = action({
       return { content: cleanAIResponse(result.content), model: result.model };
     } catch (groqErr) {
       console.error("All AI models failed for chat:", groqErr.message);
-      const errorMsg =
-        language === "hi" ? "\u092E\u093E\u092B\u093C \u0915\u0930\u0947\u0902, \u0905\u092D\u0940 \u0915\u0928\u0947\u0915\u094D\u0936\u0928 \u092E\u0947\u0902 \u0938\u092E\u0938\u094D\u092F\u093E \u0939\u0948\u0964 \u0915\u0943\u092A\u092F\u093E \u0926\u094B\u092C\u093E\u0930\u093E \u0915\u094B\u0936\u093F\u0936 \u0915\u0930\u0947\u0902\u0964"
-        : language === "kn" ? "\u0C95\u0CCD\u0CB7\u0CAE\u0CBF\u0CB8\u0CBF, \u0CB8\u0C82\u0CAA\u0CB0\u0CCD\u0C95 \u0CB8\u0CAE\u0CB8\u0CCD\u0CAF\u0CC6 \u0C87\u0CA6\u0CC6. \u0CA6\u0CAF\u0CB5\u0CBF\u0C9F\u0CCD\u0C9F\u0CC1 \u0CAE\u0CA4\u0CCD\u0CA4\u0CC6 \u0CAA\u0CCD\u0CB0\u0CAF\u0CA4\u0CCD\u0CA8\u0CBF\u0CB8\u0CBF."
-        : language === "ta" ? "\u0BAE\u0BA9\u0BCD\u0BA9\u0BBF\u0B95\u0BCD\u0B95\u0BB5\u0BC1\u0BAE\u0BCD, \u0B87\u0BA3\u0BC8\u0BAA\u0BCD\u0BAA\u0BC1 \u0B9A\u0BBF\u0B95\u0BCD\u0B95\u0BB2\u0BCD \u0B89\u0BB3\u0BCD\u0BB3\u0BA4\u0BC1. \u0BAE\u0BC0\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD \u0BAE\u0BC1\u0BAF\u0BB1\u0BCD\u0B9A\u0BBF\u0B95\u0BCD\u0B95\u0BB5\u0BC1\u0BAE\u0BCD."
-        : language === "te" ? "\u0C15\u0C4D\u0C37\u0C2E\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F, \u0C15\u0C28\u0C46\u0C15\u0C4D\u0C37\u0C28\u0C4D \u0C38\u0C2E\u0C38\u0C4D\u0C2F \u0C09\u0C02\u0C26\u0C3F. \u0C26\u0C2F\u0C1A\u0C47\u0C38\u0C3F \u0C2E\u0C33\u0C4D\u0C33\u0C40 \u0C2A\u0C4D\u0C30\u0C2F\u0C24\u0C4D\u0C28\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F."
-        : language === "bn" ? "\u09A6\u09C1\u0983\u0996\u09BF\u09A4, \u09B8\u0982\u09AF\u09CB\u0997\u09C7 \u09B8\u09AE\u09B8\u09CD\u09AF\u09BE \u0986\u099B\u09C7\u0964 \u0986\u09AC\u09BE\u09B0 \u099A\u09C7\u09B7\u09CD\u099F\u09BE \u0995\u09B0\u09C1\u09A8\u0964"
-        : language === "mr" ? "\u092E\u093E\u092B \u0915\u0930\u093E, \u0915\u0928\u0947\u0915\u094D\u0936\u0928\u092E\u0927\u094D\u092F\u0947 \u0938\u092E\u0938\u094D\u092F\u093E \u0906\u0939\u0947. \u092A\u0941\u0928\u094D\u0939\u093E \u092A\u094D\u0930\u092F\u0924\u094D\u0928 \u0915\u0930\u093E."
-        : "Sorry, having trouble connecting. Please try again.";
-      return { content: errorMsg, model: "error-fallback" };
+      return { content: "Sorry, having trouble connecting right now. Please try again.", model: "error-fallback" };
     }
   },
 });
 
-// â”€â”€ 2. MEDICAL REPORT ANALYZER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  2. MEDICAL REPORT ANALYZER 
 export const analyzeReport = action({
   args: {
     imageBase64: v.string(),
@@ -705,7 +663,7 @@ export const analyzeReport = action({
   },
 });
 
-// â”€â”€ 3. SYMPTOM ANALYSIS (AI-powered, called from symptoms page) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  3. SYMPTOM ANALYSIS (AI-powered, called from symptoms page) 
 export const analyzeSymptoms = action({
   args: {
     symptoms:           v.array(v.string()),
@@ -774,7 +732,7 @@ Please help me understand what these symptoms might indicate.`;
   },
 });
 
-// â”€â”€ 4. HEALTH INSIGHTS GENERATOR (Digital Twin AI section) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  4. HEALTH INSIGHTS GENERATOR (Digital Twin AI section) 
 export const generateHealthInsights = action({
   args: {
     userId:        v.id("users"),
@@ -843,7 +801,7 @@ export const generateHealthInsights = action({
       {
         type: "info",
         title: "Track your daily vitals",
-        message: "Log blood pressure and heart rate daily â€” patterns reveal important health trends.",
+        message: "Log blood pressure and heart rate daily " patterns reveal important health trends.",
         icon: "Heart",
       },
       {
