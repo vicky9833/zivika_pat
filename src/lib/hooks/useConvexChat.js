@@ -47,7 +47,7 @@ export function useConvexChat(convexUser, mode = "copilot") {
     const result = await chatAction({
       messages: history,
       mode,
-      language: language ?? "en",
+      nativeLanguage: language ?? "en",
       healthContext,
       user,
     });
