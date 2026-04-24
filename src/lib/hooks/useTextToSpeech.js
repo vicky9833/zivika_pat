@@ -3,6 +3,7 @@ import { useState, useRef, useCallback } from "react";
 
 export function useTextToSpeech() {
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [currentText, setCurrentText] = useState("");
   const utteranceRef = useRef(null);
 
   const isSupported =
@@ -82,11 +83,12 @@ export function useTextToSpeech() {
       window.speechSynthesis.addEventListener("voiceschanged", selectVoice, { once: true });
     }
 
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
+    utterance.onstart = () => { setIsSpeaking(true); setCurrentText(text); };
+    utterance.onend = () => { setIsSpeaking(false); setCurrentText(""); };
     utterance.onerror = (e) => {
       console.warn("TTS error:", e.error);
       setIsSpeaking(false);
+      setCurrentText("");
     };
 
     // Small delay for reliability on Android Chrome
@@ -100,10 +102,12 @@ export function useTextToSpeech() {
       window.speechSynthesis.cancel();
     }
     setIsSpeaking(false);
+    setCurrentText("");
   }, []);
 
   return {
     isSpeaking,
+    currentText,
     speak,
     stopSpeaking,
     isSupported,

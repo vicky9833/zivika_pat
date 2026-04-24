@@ -61,10 +61,12 @@ function renderText(text, isUser) {
  */
 export default function ChatBubble({ role, text, timestamp, showAvatar, language = "en", onSpeak }) {
   const isUser = role === "user";
-  const { isSpeaking, speak, stopSpeaking } = useTextToSpeech();
+  const { isSpeaking, speak, stopSpeaking, currentText } = useTextToSpeech();
+  // Only show as active if THIS bubble's text is currently being spoken
+  const isThisBubbleSpeaking = isSpeaking && currentText === text;
 
   function handleSpeak() {
-    if (isSpeaking) {
+    if (isThisBubbleSpeaking) {
       stopSpeaking();
     } else if (onSpeak) {
       onSpeak(text);
@@ -164,18 +166,19 @@ export default function ChatBubble({ role, text, timestamp, showAvatar, language
             onClick={handleSpeak}
             style={{
               width: 24, height: 24, borderRadius: "50%",
-              background: isSpeaking ? "rgba(13,110,79,0.15)" : "rgba(13,110,79,0.08)",
-              border: "none", cursor: "pointer",
+              background: isThisBubbleSpeaking ? "rgba(13,110,79,0.18)" : "rgba(13,110,79,0.08)",
+              border: isThisBubbleSpeaking ? "1.5px solid #0D6E4F" : "none",
+              cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center",
               padding: 0, flexShrink: 0,
-              transition: "background 0.15s",
+              transition: "all 0.15s",
             }}
-            title={isSpeaking ? "Stop audio" : "Play audio"}
-            aria-label={isSpeaking ? "Stop speaking" : "Read aloud"}
+            title={isThisBubbleSpeaking ? "Stop audio" : "Play audio"}
+            aria-label={isThisBubbleSpeaking ? "Stop speaking" : "Read aloud"}
           >
-            {isSpeaking
+            {isThisBubbleSpeaking
               ? <VolumeX size={12} color="#0D6E4F" />
-              : <Volume2 size={12} color="#0D6E4F" />}
+              : <Volume2 size={12} color="#8EBAA3" />}
           </button>
         )}
       </div>

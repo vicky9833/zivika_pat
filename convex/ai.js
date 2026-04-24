@@ -609,8 +609,16 @@ export const chat = action({
 
     // FALLBACK: Groq (all languages — Gemini unavailable)
     try {
+      // Reinforce health-only rule at the end of system prompt — Llama models
+      // respect instructions placed later in the system message more strongly.
+      const groqSystemPrompt = systemPrompt +
+        "\n\nCRITICAL FINAL RULE: You are ONLY a health assistant. " +
+        "If the user asks ANYTHING not related to health, symptoms, medicines, " +
+        "lab reports, diet, exercise, or medical conditions, you MUST reply: " +
+        "\"I'm your health companion and can only help with health questions.\" " +
+        "Do NOT answer non-health questions under any circumstances.";
       const groqMessages = [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: groqSystemPrompt },
         ...finalMessages,
       ];
       const result = await callGroqText(groqMessages, 150);
