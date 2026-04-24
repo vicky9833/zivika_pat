@@ -132,6 +132,8 @@ export default function ChatBubble({ role, text, timestamp, showAvatar, language
             wordBreak: "break-word",
             overflowWrap: "anywhere",
             minWidth: 60,
+            maxHeight: "240px",
+            overflowY: "auto",
           }}
         >
           {renderText(text, isUser)}

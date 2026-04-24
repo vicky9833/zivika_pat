@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Stethoscope, Globe, MoreVertical, ChevronLeft, Mic, MicOff, Send } from "lucide-react";
+import { Stethoscope, Globe, MoreVertical, ChevronLeft, Mic, MicOff, Send, Volume2, VolumeX } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/components/ui/Toast";
 import { useRecordsStore } from "@/lib/stores/records-store";
@@ -89,6 +89,7 @@ function CopilotPageInner() {
   const [inputText, setInputText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showLangBar, setShowLangBar] = useState(false);
+  const [muteAutoSpeak, setMuteAutoSpeak] = useState(false);
 
   // Real voice: Web Speech API
   const {
@@ -131,7 +132,7 @@ function CopilotPageInner() {
     if (wasTypingRef.current && !isTyping) {
       const msgs = mode === "copilot" ? copilotChat.messages : doctorChat.messages;
       const lastMsg = msgs[msgs.length - 1];
-      if (lastMsg?.role === "assistant" && lastMsg.content) {
+      if (lastMsg?.role === "assistant" && lastMsg.content && !muteAutoSpeak) {
         speak(cleanTextForSpeech(lastMsg.content), language);
       }
     }
@@ -295,6 +296,23 @@ function CopilotPageInner() {
         </span>
 
         <div style={{ display: "flex", gap: 8 }}>
+          {/* Mute auto-speak toggle */}
+          <button
+            onClick={() => { setMuteAutoSpeak((v) => !v); if (!muteAutoSpeak) stopSpeaking(); }}
+            style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: muteAutoSpeak ? "#FEE2E2" : "#F0F7F4",
+              border: "none",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer",
+            }}
+            aria-label={muteAutoSpeak ? "Unmute auto-speak" : "Mute auto-speak"}
+            title={muteAutoSpeak ? "Auto-speak muted" : "Auto-speak on"}
+          >
+            {muteAutoSpeak
+              ? <VolumeX size={18} color="#DC2626" />
+              : <Volume2 size={18} color="#0D6E4F" />}
+          </button>
           <button
             onClick={() => setShowLangBar((v) => !v)}
             style={{
@@ -481,6 +499,8 @@ function CopilotPageInner() {
             display: "flex",
             flexDirection: "column",
             gap: 10,
+            overflowX: "hidden",
+            width: "100%",
           }}
         >
           {displayMessages.map((msg, i) => {

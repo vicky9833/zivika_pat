@@ -108,9 +108,9 @@ Your response will be spoken aloud by a voice assistant.
 // 
 
 const GEMINI_MODELS = {
-  FLASH:       "gemini-2.0-flash",  // Fast & cheap: copilot, symptoms, report scan
-  PRO:         "gemini-1.5-pro",    // Deep reasoning: health insights, twin
-  FLASH_VISION: "gemini-2.0-flash", // Vision tasks: same model handles images
+  FLASH: "gemini-2.0-flash",
+  PRO: "gemini-1.5-pro",
+  FLASH_VISION: "gemini-2.0-flash",
 };
 
 // Groq model fallback chain (text)
@@ -177,6 +177,17 @@ While waiting for emergency help:
 
 Please call 108 or 112 immediately. Every second matters.`;
 
+// Top-level script instruction prefixes — injected into last user message
+// to strongly enforce native-script responses from Gemini/Groq
+const SCRIPT_INSTRUCTIONS = {
+  hi: "हिंदी में उत्तर दें। केवल देवनागरी लिपि में। रोमन अक्षर बिल्कुल नहीं।\n\nप्रश्न: ",
+  kn: "ಕನ್ನಡದಲ್ಲಿ ಉತ್ತರಿಸಿ. ಕನ್ನಡ ಲಿಪಿ ಮಾತ್ರ.\n\nಪ್ರಶ್ನೆ: ",
+  ta: "தமிழில் பதிலளிக்கவும். தமிழ் எழுத்து மட்டும்.\n\nகேள்வி: ",
+  te: "తెలుగులో సమాధానం ఇవ్వండి. తెలుగు లిపి మాత్రమే.\n\nప్రశ్న: ",
+  bn: "বাংলায় উত্তর দিন। বাংলা লিপি শুধুমাত্র।\n\nপ্রশ্ন: ",
+  mr: "मराठीत उत्तर द्या. फक्त देवनागरी लिपीत.\n\nप्रश्न: ",
+};
+
 // 
 // GEMINI API CALLER
 // 
@@ -194,7 +205,7 @@ async function callGemini(model, contents, config = {}) {
     contents,
     generationConfig: {
       temperature:     config.temperature     ?? 0.3,
-      maxOutputTokens: config.maxTokens       ?? 120,
+      maxOutputTokens: config.maxTokens       ?? 150,
       topP:            config.topP            ?? 0.8,
       topK:            config.topK            ?? 20,
     },
@@ -320,86 +331,105 @@ function languageInstruction(lang) {
 }
 
 function buildCopilotSystemPrompt(patientContext, language) {
-  const LANGUAGE_INSTRUCTION = {
-    en: "Respond in simple, warm Indian English only.",
-    hi: "You MUST respond in Hindi language using Devanagari script. Example of correct Hindi: \"\u0906\u092A\u0915\u093E \u0938\u094D\u0935\u093E\u0938\u094D\u0925\u094D\u092F \u0905\u091A\u094D\u091B\u093E \u0939\u0948\u0964\" NEVER write Hindi using Roman/English letters. NEVER write 'Aapko' or 'Kab se' - always use proper Hindi Unicode script.",
-    kn: "You MUST respond in Kannada language using Kannada script. Example: \"\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C86\u0CB0\u0CCB\u0C97\u0CCD\u0CAF \u0C9A\u0CC6\u0CA8\u0CCD\u0CA8\u0CBE\u0C97\u0CBF\u0CA6\u0CC6\u0CCD.\" NEVER romanize Kannada words. Use proper Kannada Unicode characters only.",
-    ta: "You MUST respond in Tamil language using Tamil script. Example: \"\u0B89\u0B99\u0BCD\u0B95\u0BB3\u0BCD \u0B89\u0B9F\u0BB2\u0BCD\u0BA8\u0BB2\u0BAE\u0BCD \u0BA8\u0BB2\u0BCD\u0BB2\u0BA4\u0BC1.\" NEVER romanize Tamil words. Use proper Tamil Unicode characters only.",
-    te: "You MUST respond in Telugu language using Telugu script. Example: \"\u0C2E\u0C40 \u0C06\u0C30\u0C4B\u0C17\u0C4D\u0C2F\u0C02 \u0C2C\u0C3E\u0C17\u0C41\u0C02\u0C26\u0C3F.\" NEVER romanize Telugu words. Use proper Telugu Unicode characters only.",
-    bn: "You MUST respond in Bengali language using Bengali script. Example: \"\u0986\u09AA\u09A8\u09BE\u09B0 \u09B8\u09CD\u09AC\u09BE\u09B8\u09CD\u09A5\u09CD\u09AF \u09AD\u09BE\u09B2\u09CB\u0964\" NEVER romanize Bengali words. Use proper Bengali Unicode characters only.",
-    mr: "You MUST respond in Marathi language using Devanagari script. Example: \"\u0924\u0941\u092E\u091A\u0947 \u0906\u0930\u094B\u0917\u094D\u092F \u091A\u093E\u0902\u0917\u0932\u0947 \u0906\u0939\u0947.\" NEVER romanize Marathi words. Use proper Devanagari Unicode characters only.",
+  const LANG_RULES = {
+    hi: `तुम एक भारतीय स्वास्थ्य सहायक हो।
+हमेशा हिंदी में देवनागरी लिपि में जवाब दो।
+कभी भी रोमन अक्षरों में हिंदी मत लिखो।
+सही: "आपको पानी पीना चाहिए।"
+गलत: "Aapko paani peena chahiye."
+अधिकतम 3 छोटे वाक्य। अगर जरूरी हो तो एक सवाल पूछो।`,
+
+    kn: `ನೀವು ಭಾರತೀಯ ಆರೋಗ್ಯ ಸಹಾಯಕ.
+ಯಾವಾಗಲೂ ಕನ್ನಡ ಲಿಪಿಯಲ್ಲಿ ಉತ್ತರಿಸಿ.
+ರೋಮನ್ ಅಕ್ಷರಗಳಲ್ಲಿ ಕನ್ನಡ ಬರೆಯಬೇಡಿ.
+ಸರಿ: "ನೀವು ನೀರು ಕುಡಿಯಬೇಕು."
+ತಪ್ಪು: "Neevu neeru kudiyabeku."
+ಗರಿಷ್ಠ 3 ಚಿಕ್ಕ ವಾಕ್ಯಗಳು.`,
+
+    ta: `நீங்கள் ஒரு இந்திய சுகாதார உதவியாளர்.
+எப்போதும் தமிழ் எழுத்தில் பதிலளிக்கவும்.
+ஆங்கில எழுத்தில் தமிழ் எழுதாதீர்கள்.
+சரி: "நீங்கள் தண்ணீர் குடிக்க வேண்டும்."
+தவறு: "Neengal thanneer kudikka vendum."
+அதிகபட்சம் 3 சிறிய வாக்கியங்கள்.`,
+
+    te: `మీరు భారతీయ ఆరోగ్య సహాయకుడు.
+ఎల్లప్పుడూ తెలుగు లిపిలో సమాధానం ఇవ్వండి.
+రోమన్ అక్షరాలలో తెలుగు రాయకండి.
+సరైనది: "మీరు నీరు తాగాలి."
+తప్పు: "Meeru neeru taagaali."
+గరిష్టం 3 చిన్న వాక్యాలు.`,
+
+    bn: `আপনি একজন ভারতীয় স্বাস্থ্য সহায়ক।
+সর্বদা বাংলা লিপিতে উত্তর দিন।
+রোমান অক্ষরে বাংলা লিখবেন না।
+সঠিক: "আপনার জল পান করা উচিত।"
+ভুল: "Aapnar jal pan kora uchit."
+সর্বোচ্চ ৩টি ছোট বাক্য।`,
+
+    mr: `तुम्ही एक भारतीय आरोग्य सहाय्यक आहात.
+नेहमी मराठीत देवनागरी लिपीत उत्तर द्या.
+रोमन अक्षरात मराठी लिहू नका.
+बरोबर: "तुम्ही पाणी प्यायला हवे."
+चुकीचे: "Tumhi paani piyala have."
+जास्तीत जास्त 3 लहान वाक्ये.`,
+
+    en: `You are a caring Indian health assistant.
+Reply in simple clear English.
+Maximum 3 short sentences.
+Ask one follow-up question if needed.`,
   };
 
-  const langRule = LANGUAGE_INSTRUCTION[language] || LANGUAGE_INSTRUCTION.en;
+  return `${LANG_RULES[language] || LANG_RULES.en}
 
-  return `You are Zivika, a caring personal health companion built specifically for Indian users.
+PATIENT DATA: ${patientContext || "New user."}
 
-LANGUAGE RULE - FOLLOW THIS STRICTLY:
-${langRule}
-Never add accent marks to English words (no feeling with accents, no severe with accents).
-Never mix Hindi romanized words with English.
+RULES FOR ALL LANGUAGES:
+1. Maximum 3 sentences. Never more.
+2. No markdown. No asterisks. No bullet points.
+3. If question is unclear, ask ONE question only.
+4. Never prescribe medicines.
+5. Always recommend doctor for serious issues.
+6. For emergency symptoms: say call 108 immediately.
 
-HEALTH ONLY RULE - VERY IMPORTANT:
-You ONLY answer health-related questions.
-Health topics include: symptoms, medicines, lab reports, vitals, diet for health, exercise, mental health, sleep, Indian health conditions, medical tests, health insurance queries.
+HOW TO RESPOND:
+Simple symptom like headache or fever:
+- Ask: when did it start, how severe, any other symptoms
+- Do NOT give long explanations first
 
-If user asks ANYTHING not related to health, respond with:
-- In English: "I'm your health companion and can only help with health questions. Please ask me about your symptoms, reports, medicines, or health concerns."
-- In Hindi: use Hindi script equivalent
-- In other languages: use appropriate script
-
-Examples of NON-HEALTH questions to reject:
-- General chat ("how are you", "what is your name")
-- News, sports, politics, entertainment
-- Technology, coding, business questions
-- Anything not about the user's body or health
-
-PATIENT CONTEXT:
-${patientContext || "New user, no health data yet."}
-
-HOW TO RESPOND TO HEALTH QUESTIONS:
-- If the question is unclear, ask ONE short clarifying question (e.g. "How long have you had this?")
-- If clear, give one-line practical advice and say when to see a doctor.
-
-RESPONSE FORMAT:
-- MAXIMUM 1 SHORT SENTENCE. Never more.
-- No markdown, no bullet points, no asterisks, no lists
-- Warm conversational tone
-- Never diagnose definitively
-- Never prescribe specific medicines or dosages
-- For emergencies: say call 108 immediately
-- Comply with India Telemedicine Guidelines 2020`;
+After they answer:
+- Give short practical advice
+- Say when to see a doctor`;
 }
 function buildDoctorSystemPrompt(language) {
-  const LANGUAGE_MAP = {
-    hi: "Hindi using Devanagari script only",
-    kn: "Kannada using Kannada script only",
-    ta: "Tamil using Tamil script only",
-    te: "Telugu using Telugu script only",
-    bn: "Bengali using Bengali script only",
-    mr: "Marathi using Devanagari script only",
-    en: "simple clear English",
+  const LANG_RULES = {
+    hi: `हिंदी में देवनागरी लिपि में जवाब दो। रोमन नहीं।`,
+    kn: `ಕನ್ನಡ ಲಿಪಿಯಲ್ಲಿ ಉತ್ತರಿಸಿ. ರೋಮನ್ ಅಕ್ಷರ ಬೇಡ.`,
+    ta: `தமிழ் எழுத்தில் பதிலளிக்கவும்.`,
+    te: `తెలుగు లిపిలో సమాధానం ఇవ్వండి.`,
+    bn: `বাংলা লিপিতে উত্তর দিন।`,
+    mr: `मराठीत देवनागरी लिपीत उत्तर द्या.`,
+    en: `Reply in simple clear English.`,
   };
 
-  const responseLang = LANGUAGE_MAP[language] || LANGUAGE_MAP.en;
+  return `${LANG_RULES[language] || LANG_RULES.en}
 
-  return `You are Zivika, a knowledgeable Indian health guide.
+You are Zivika — a knowledgeable Indian health guide.
+Not a doctor. A trusted health companion.
 
-LANGUAGE RULE:
-Always respond in ${responseLang}.
-Never romanize Indian language words.
-Detect language from user message and match it.
+RESPONSE RULES:
+1. Maximum 3 short sentences always
+2. No markdown, no symbols, no bullet points
+3. Natural conversational language for voice
+4. Ask follow-up before giving long advice
+5. Never prescribe medicines or dosages
+6. Always say: consult your doctor for serious issues
+7. Emergency symptoms: call 108 immediately
 
-RULES:
-- MAXIMUM 1 SENTENCE always — be extremely brief
-- No markdown formatting
-- No bullet points or symbols
-- Ask one question before giving long advice
-- Never prescribe medicines
-- Recommend doctor for serious issues
-- Emergency symptoms: say call 108 immediately
-
-You have deep knowledge of Indian health conditions, Indian diet, and Indian lifestyle context.`;
+DETECT USER LANGUAGE:
+If user writes in Hindi script respond in Hindi script
+If user writes in Kannada respond in Kannada
+Match whatever script the user uses.`;
 }
 function buildReportAnalysisPrompt() {
   return `You are a medical document AI for Zivika Labs, an Indian health management platform.
@@ -580,15 +610,7 @@ export const chat = action({
         ? buildDoctorSystemPrompt(language)
         : buildCopilotSystemPrompt(args.healthContext || "", language);
 
-    // Inject native-script instruction directly into the last user message
-    const SCRIPT_INSTRUCTIONS = {
-      hi: "IMPORTANT: Respond ONLY in Hindi Devanagari script. Never use Roman letters for Hindi. Example wrong: 'Aapko paani peena chahiye'.\n\nUser question: ",
-      kn: "IMPORTANT: Respond ONLY in Kannada script. Never use Roman letters. Example wrong: 'Neevu neeru kudiyabeku'.\n\nUser question: ",
-      ta: "IMPORTANT: Respond ONLY in Tamil script. Never romanize Tamil.\n\nUser question: ",
-      te: "IMPORTANT: Respond ONLY in Telugu script. Never romanize Telugu.\n\nUser question: ",
-      bn: "IMPORTANT: Respond ONLY in Bengali script. Never romanize Bengali.\n\nUser question: ",
-      mr: "IMPORTANT: Respond ONLY in Marathi Devanagari script. Never romanize Marathi.\n\nUser question: ",
-    };
+    // Prefix last user message with native-script instruction (top-level SCRIPT_INSTRUCTIONS)
     const prefix = SCRIPT_INSTRUCTIONS[language] || "";
     const lastUserMessage = args.messages[args.messages.length - 1];
     const modifiedLastMessage = prefix
@@ -596,37 +618,46 @@ export const chat = action({
       : lastUserMessage;
     const finalMessages = [...args.messages.slice(0, -1), modifiedLastMessage];
 
-    const validContents = buildGeminiContents(systemPrompt, finalMessages);
+    // Build Gemini contents: system context then conversation
+    const contents = [
+      { role: "user",  parts: [{ text: systemPrompt }] },
+      { role: "model", parts: [{ text: "Understood." }] },
+      ...finalMessages.map((msg) => ({
+        role:  msg.role === "user" ? "user" : "model",
+        parts: [{ text: msg.content }],
+      })),
+    ];
 
     // PRIMARY: Gemini Flash
     try {
-      const text = await callGemini(GEMINI_MODELS.FLASH, validContents, { maxTokens: 80, temperature: 0.3 });
+      const text = await callGemini(GEMINI_MODELS.FLASH, contents, { maxTokens: 150, temperature: 0.3 });
       return { content: cleanAIResponse(text), model: GEMINI_MODELS.FLASH };
     } catch (geminiError) {
-      console.error("Gemini error in copilot:", geminiError.message);
+      console.error("Gemini failed:", geminiError.message);
     }
 
-    // FALLBACK: Groq (all languages — Gemini unavailable)
+    // FALLBACK: Groq
     try {
-      // Reinforce health-only rule at the end of system prompt — Llama models
-      // respect instructions placed later in the system message more strongly.
-      const groqSystemPrompt = systemPrompt +
-        "\n\nCRITICAL FINAL RULE: You are ONLY a health assistant. " +
-        "If the user asks ANYTHING not related to health, symptoms, medicines, " +
-        "lab reports, diet, exercise, or medical conditions, you MUST reply: " +
-        "\"I'm your health companion and can only help with health questions.\" " +
-        "Do NOT answer non-health questions under any circumstances.";
       const groqMessages = [
-        { role: "system", content: groqSystemPrompt },
+        { role: "system", content: systemPrompt },
         ...finalMessages,
       ];
-      const result = await callGroqText(groqMessages, 80);
+      const result = await callGroqText(groqMessages, 150);
       return { content: cleanAIResponse(result.content), model: result.model };
     } catch (groqErr) {
       console.error("Groq fallback also failed:", groqErr.message);
     }
 
-    return { content: "Sorry, having trouble connecting. Please try again.", model: "error-fallback" };
+    // Language-specific error messages
+    const errorMsg =
+      language === "hi" ? "माफ़ करें, अभी कनेक्शन में समस्या है। कृपया दोबारा कोशिश करें।" :
+      language === "kn" ? "ಕ್ಷಮಿಸಿ, ಸಂಪರ್ಕ ಸಮಸ್ಯೆ ಇದೆ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ." :
+      language === "ta" ? "மன்னிக்கவும், இணைப்பு சிக்கல். மீண்டும் முயற்சிக்கவும்." :
+      language === "te" ? "క్షమించండి, కనెక్షన్ సమస్య. దయచేసి మళ్ళీ ప్రయత్నించండి." :
+      language === "bn" ? "দুঃখিত, সংযোগ সমস্যা। আবার চেষ্টা করুন।" :
+      language === "mr" ? "माफ करा, कनेक्शन समस्या. पुन्हा प्रयत्न करा." :
+      "Sorry, having trouble connecting. Please try again.";
+    return { content: errorMsg, model: "error-fallback" };
   },
 });
 
