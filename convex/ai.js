@@ -358,14 +358,13 @@ PATIENT CONTEXT:
 ${patientContext || "New user, no health data yet."}
 
 HOW TO RESPOND TO HEALTH QUESTIONS:
-Step 1: If the symptom or question is clear, ask ONE clarifying question first (duration, severity).
-Step 2: After they answer, give short practical advice.
-Step 3: Always say when to see a doctor.
+- If the question is unclear, ask ONE short clarifying question (e.g. "How long have you had this?")
+- If clear, give one-line practical advice and say when to see a doctor.
 
 RESPONSE FORMAT:
-- Maximum 2 short sentences
-- No markdown, no bullet points, no asterisks
-- Natural warm conversational tone
+- MAXIMUM 1 SHORT SENTENCE. Never more.
+- No markdown, no bullet points, no asterisks, no lists
+- Warm conversational tone
 - Never diagnose definitively
 - Never prescribe specific medicines or dosages
 - For emergencies: say call 108 immediately
@@ -392,7 +391,7 @@ Never romanize Indian language words.
 Detect language from user message and match it.
 
 RULES:
-- Maximum 2 sentences always
+- MAXIMUM 1 SENTENCE always — be extremely brief
 - No markdown formatting
 - No bullet points or symbols
 - Ask one question before giving long advice
@@ -601,7 +600,7 @@ export const chat = action({
 
     // PRIMARY: Gemini Flash
     try {
-      const text = await callGemini(GEMINI_MODELS.FLASH, validContents, { maxTokens: 150, temperature: 0.3 });
+      const text = await callGemini(GEMINI_MODELS.FLASH, validContents, { maxTokens: 80, temperature: 0.3 });
       return { content: cleanAIResponse(text), model: GEMINI_MODELS.FLASH };
     } catch (geminiError) {
       console.error("Gemini error in copilot:", geminiError.message);
@@ -621,7 +620,7 @@ export const chat = action({
         { role: "system", content: groqSystemPrompt },
         ...finalMessages,
       ];
-      const result = await callGroqText(groqMessages, 150);
+      const result = await callGroqText(groqMessages, 80);
       return { content: cleanAIResponse(result.content), model: result.model };
     } catch (groqErr) {
       console.error("Groq fallback also failed:", groqErr.message);

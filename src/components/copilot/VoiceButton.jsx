@@ -1,35 +1,17 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Mic } from "lucide-react";
 
-// ── SARVAM AI STT INTEGRATION POINT ──────────────────────────────────────────
-// When integrating Sarvam AI Speech-to-Text:
-//
-// 1. Capture audio with the MediaRecorder API:
-//      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-//      const recorder = new MediaRecorder(stream);
-//      recorder.ondataavailable = (e) => audioChunks.push(e.data);
-//      recorder.start();
-//
-// 2. On stopRecording(), collect chunks into a Blob and send to Sarvam:
-//      POST https://api.sarvam.ai/speech-to-text
-//      Headers: { "api-subscription-key": process.env.NEXT_PUBLIC_SARVAM_API_KEY }
-//      Body: FormData with:
-//        - "file": audioBlob (WAV or MP3)
-//        - "language_code": "hi-IN" | "kn-IN" | "en-IN" (based on selected language)
-//        - "model": "saarika:v2"
-//
-// 3. Parse the response and call onResult(data.transcript)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const SIMULATED_QUESTIONS = [
-  "What does my latest blood report say?",
-  "Should I be worried about my vitamin D levels?",
-  "How is my diabetes being managed?",
-  "What side effects should I watch for with Metformin?",
-  "Summarize my current health status",
-];
+const LANG_CODES = {
+  en: "en-IN",
+  hi: "hi-IN",
+  kn: "kn-IN",
+  ta: "ta-IN",
+  te: "te-IN",
+  bn: "bn-IN",
+  mr: "mr-IN",
+};
 
 const PULSE_KEYFRAMES = `
 @keyframes zivikaVoicePulse {
@@ -40,44 +22,101 @@ const PULSE_KEYFRAMES = `
 `;
 
 /**
- * VoiceButton — mic button with recording animation and simulated STT.
+ * VoiceButton — mic button with Web Speech API real-time transcription.
  *
  * Props:
- *  onResult   (transcript: string) => void — called with the recognized text
+ *  onResult   (finalTranscript: string) => void — called with the final text
+ *  onInterim  (liveTranscript: string) => void — live text as user speaks (optional)
+ *  language   "en" | "hi" | "kn" | "ta" | "te" | "bn" | "mr"
  *  disabled   bool
  */
-export default function VoiceButton({ onResult, disabled }) {
+export default function VoiceButton({ onResult, onInterim, language = "en", disabled }) {
   const [recording, setRecording] = useState(false);
-  const [label, setLabel] = useState(null); // "Listening..." | "Processing..." | null
-  const timerRef = useRef(null);
+  const [label, setLabel] = useState(null);
+  const recognitionRef = useRef(null);
+  const finalRef = useRef("");
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => { recognitionRef.current?.abort(); };
+  }, []);
 
   function startRecording() {
-    setRecording(true);
-    setLabel("Listening...");
+    const SpeechRecognition =
+      typeof window !== "undefined" &&
+      (window.SpeechRecognition || window.webkitSpeechRecognition);
 
-    // Auto-stop after 3 seconds (replace with MediaRecorder stop in production)
-    timerRef.current = setTimeout(() => {
-      finishRecording();
-    }, 3000);
+    if (!SpeechRecognition) {
+      setLabel("Not supported");
+      setTimeout(() => setLabel(null), 2500);
+      return;
+    }
+
+    finalRef.current = "";
+    const recognition = new SpeechRecognition();
+    recognition.lang = LANG_CODES[language] || "en-IN";
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.continuous = false;
+
+    recognition.onstart = () => {
+      setRecording(true);
+      setLabel("Listening...");
+    };
+
+    recognition.onresult = (event) => {
+      let interim = "";
+      let final = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          final += t;
+        } else {
+          interim += t;
+        }
+      }
+      if (final) finalRef.current += final;
+      // Push live text into the input as user speaks
+      if (onInterim) onInterim(finalRef.current + interim);
+    };
+
+    recognition.onend = () => {
+      setRecording(false);
+      setLabel(null);
+      const result = finalRef.current.trim();
+      if (result) {
+        onResult(result);
+      } else if (onInterim) {
+        onInterim(""); // clear any interim text if nothing final
+      }
+      recognitionRef.current = null;
+    };
+
+    recognition.onerror = (e) => {
+      setRecording(false);
+      if (e.error === "not-allowed") {
+        setLabel("Mic blocked");
+      } else if (e.error === "no-speech") {
+        setLabel("No speech");
+      } else {
+        setLabel("Try again");
+      }
+      setTimeout(() => setLabel(null), 2500);
+      recognitionRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
   }
 
-  function finishRecording() {
-    clearTimeout(timerRef.current);
-    setRecording(false);
-    setLabel("Processing...");
-
-    // Simulate ~800ms STT processing delay, then deliver mock transcript
-    setTimeout(() => {
-      setLabel(null);
-      const q = SIMULATED_QUESTIONS[Math.floor(Math.random() * SIMULATED_QUESTIONS.length)];
-      onResult(q);
-    }, 800);
+  function stopRecording() {
+    recognitionRef.current?.stop();
   }
 
   function handleClick() {
-    if (disabled) return;
+    if (disabled && !recording) return;
     if (recording) {
-      finishRecording();
+      stopRecording();
     } else {
       startRecording();
     }

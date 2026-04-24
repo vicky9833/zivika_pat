@@ -51,8 +51,11 @@ export default function ChatInput({ onSend, language = "en", disabled }) {
 
   function handleVoiceResult(transcript) {
     setText(transcript);
-    // Small delay so the text appears before auto-focus
     setTimeout(() => textareaRef.current?.focus(), 50);
+  }
+
+  function handleVoiceInterim(interim) {
+    setText(interim);
   }
 
   const canSend = text.trim().length > 0 && !disabled;
@@ -76,7 +79,12 @@ export default function ChatInput({ onSend, language = "en", disabled }) {
         boxSizing: "border-box",
       }}
     >
-      <VoiceButton onResult={handleVoiceResult} disabled={disabled} />
+      <VoiceButton
+        onResult={handleVoiceResult}
+        onInterim={handleVoiceInterim}
+        language={language}
+        disabled={disabled}
+      />
 
       <textarea
         ref={textareaRef}
