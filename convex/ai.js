@@ -31,7 +31,6 @@ function cleanAIResponse(text) {
     .replace(/"/g, '\u201D')
     .replace(/ - /g, '\u2014')
     .replace(/"/g, '\u2018')
-    .replace(/e/g, '\u00E9')
     .replace(/WARNING/g, '\u26A0')
     // Remove markdown bold/italic (keep content)
     .replace(/\*{1,3}(.*?)\*{1,3}/g, '$1')
@@ -184,7 +183,10 @@ Please call 108 or 112 immediately. Every second matters.`;
 
 async function callGemini(model, contents, config = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY not set in Convex environment");
+  console.log("Gemini key prefix:", apiKey?.substring(0, 6));
+  if (!apiKey || !apiKey.startsWith("AIza")) {
+    throw new Error("Invalid Gemini API key: " + (apiKey?.substring(0, 6) || "missing"));
+  }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -197,8 +199,10 @@ async function callGemini(model, contents, config = {}) {
       topK:            config.topK            ?? 20,
     },
     safetySettings: [
-      { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-      { category: "HARM_CATEGORY_HARASSMENT",        threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+      { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
+      { category: "HARM_CATEGORY_HARASSMENT",        threshold: "BLOCK_ONLY_HIGH" },
+      { category: "HARM_CATEGORY_HATE_SPEECH",       threshold: "BLOCK_ONLY_HIGH" },
+      { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
     ],
   };
 
@@ -219,13 +223,17 @@ async function callGemini(model, contents, config = {}) {
   }
 
   if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Gemini ${model} HTTP ${response.status}: ${err.substring(0, 200)}`);
+    const errBody = await response.text();
+    console.error("Gemini HTTP error:", response.status, errBody);
+    throw new Error("Gemini failed: " + response.status);
   }
 
   const data = await response.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error(`Gemini ${model} returned empty response`);
+  if (!text) {
+    console.error("Gemini empty response:", JSON.stringify(data));
+    throw new Error(`Gemini ${model} returned empty response`);
+  }
   return text;
 }
 
@@ -312,44 +320,56 @@ function languageInstruction(lang) {
 }
 
 function buildCopilotSystemPrompt(patientContext, language) {
-  const LANGUAGE_MAP = {
-    hi: "Hindi (Devanagari script only, never romanized)",
-    kn: "Kannada (Kannada script only, never romanized)",
-    ta: "Tamil (Tamil script only, never romanized)",
-    te: "Telugu (Telugu script only, never romanized)",
-    bn: "Bengali (Bengali script only, never romanized)",
-    mr: "Marathi (Devanagari script only, never romanized)",
-    en: "English (simple clear Indian English)",
+  const LANGUAGE_INSTRUCTION = {
+    en: "Respond in simple, warm Indian English only.",
+    hi: "You MUST respond in Hindi language using Devanagari script. Example of correct Hindi: \"\u0906\u092A\u0915\u093E \u0938\u094D\u0935\u093E\u0938\u094D\u0925\u094D\u092F \u0905\u091A\u094D\u091B\u093E \u0939\u0948\u0964\" NEVER write Hindi using Roman/English letters. NEVER write 'Aapko' or 'Kab se' - always use proper Hindi Unicode script.",
+    kn: "You MUST respond in Kannada language using Kannada script. Example: \"\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C86\u0CB0\u0CCB\u0C97\u0CCD\u0CAF \u0C9A\u0CC6\u0CA8\u0CCD\u0CA8\u0CBE\u0C97\u0CBF\u0CA6\u0CC6\u0CCD.\" NEVER romanize Kannada words. Use proper Kannada Unicode characters only.",
+    ta: "You MUST respond in Tamil language using Tamil script. Example: \"\u0B89\u0B99\u0BCD\u0B95\u0BB3\u0BCD \u0B89\u0B9F\u0BB2\u0BCD\u0BA8\u0BB2\u0BAE\u0BCD \u0BA8\u0BB2\u0BCD\u0BB2\u0BA4\u0BC1.\" NEVER romanize Tamil words. Use proper Tamil Unicode characters only.",
+    te: "You MUST respond in Telugu language using Telugu script. Example: \"\u0C2E\u0C40 \u0C06\u0C30\u0C4B\u0C17\u0C4D\u0C2F\u0C02 \u0C2C\u0C3E\u0C17\u0C41\u0C02\u0C26\u0C3F.\" NEVER romanize Telugu words. Use proper Telugu Unicode characters only.",
+    bn: "You MUST respond in Bengali language using Bengali script. Example: \"\u0986\u09AA\u09A8\u09BE\u09B0 \u09B8\u09CD\u09AC\u09BE\u09B8\u09CD\u09A5\u09CD\u09AF \u09AD\u09BE\u09B2\u09CB\u0964\" NEVER romanize Bengali words. Use proper Bengali Unicode characters only.",
+    mr: "You MUST respond in Marathi language using Devanagari script. Example: \"\u0924\u0941\u092E\u091A\u0947 \u0906\u0930\u094B\u0917\u094D\u092F \u091A\u093E\u0902\u0917\u0932\u0947 \u0906\u0939\u0947.\" NEVER romanize Marathi words. Use proper Devanagari Unicode characters only.",
   };
 
-  const responseLang = LANGUAGE_MAP[language] || LANGUAGE_MAP.en;
+  const langRule = LANGUAGE_INSTRUCTION[language] || LANGUAGE_INSTRUCTION.en;
 
-  return `You are Zivika, a caring Indian health companion.
+  return `You are Zivika, a caring personal health companion built specifically for Indian users.
 
-LANGUAGE RULE (MOST IMPORTANT):
-You MUST respond in ${responseLang}.
-Never use Roman letters to write Indian language words.
-Never mix languages in one response.
-If user writes in a different language than selected, still respond in ${responseLang}.
+LANGUAGE RULE - FOLLOW THIS STRICTLY:
+${langRule}
+Never add accent marks to English words (no feeling with accents, no severe with accents).
+Never mix Hindi romanized words with English.
+
+HEALTH ONLY RULE - VERY IMPORTANT:
+You ONLY answer health-related questions.
+Health topics include: symptoms, medicines, lab reports, vitals, diet for health, exercise, mental health, sleep, Indian health conditions, medical tests, health insurance queries.
+
+If user asks ANYTHING not related to health, respond with:
+- In English: "I'm your health companion and can only help with health questions. Please ask me about your symptoms, reports, medicines, or health concerns."
+- In Hindi: use Hindi script equivalent
+- In other languages: use appropriate script
+
+Examples of NON-HEALTH questions to reject:
+- General chat ("how are you", "what is your name")
+- News, sports, politics, entertainment
+- Technology, coding, business questions
+- Anything not about the user's body or health
 
 PATIENT CONTEXT:
 ${patientContext || "New user, no health data yet."}
 
-RESPONSE RULES:
-- Maximum 2 short sentences per response
-- If question is unclear, ask ONE clarifying question
-- No markdown, no asterisks, no bullet points
-- Natural conversational tone, like a caring family friend
-- Never prescribe medicines or specific dosages
-- Always recommend seeing a doctor for serious concerns
+HOW TO RESPOND TO HEALTH QUESTIONS:
+Step 1: If the symptom or question is clear, ask ONE clarifying question first (duration, severity).
+Step 2: After they answer, give short practical advice.
+Step 3: Always say when to see a doctor.
+
+RESPONSE FORMAT:
+- Maximum 2 short sentences
+- No markdown, no bullet points, no asterisks
+- Natural warm conversational tone
+- Never diagnose definitively
+- Never prescribe specific medicines or dosages
 - For emergencies: say call 108 immediately
-
-HOW TO RESPOND:
-When user mentions a symptom: ask when it started and how severe.
-Do not give long explanations before asking.
-After they answer: give short practical advice in 1-2 sentences, then say when to see a doctor.
-
-You comply with India Telemedicine Guidelines 2020. Never diagnose definitively.`;
+- Comply with India Telemedicine Guidelines 2020`;
 }
 function buildDoctorSystemPrompt(language) {
   const LANGUAGE_MAP = {
@@ -488,6 +508,52 @@ If there is insufficient data, return 3 insights that encourage the user to add 
 }
 
 // 
+// BUILD GEMINI CONTENTS ARRAY
+// Ensures strictly alternating user/model roles (Gemini API requirement)
+// 
+
+function buildGeminiContents(systemPrompt, messages) {
+  const result = [];
+
+  // Add system context as first user message
+  result.push({
+    role: "user",
+    parts: [{ text: systemPrompt }],
+  });
+
+  // Add brief model acknowledgment
+  result.push({
+    role: "model",
+    parts: [{ text: "Understood. I will follow these rules." }],
+  });
+
+  // Add conversation messages, merging consecutive same-role turns
+  for (const msg of messages) {
+    const role = msg.role === "user" ? "user" : "model";
+    const lastRole = result[result.length - 1]?.role;
+    if (lastRole === role) {
+      // Merge with previous turn instead of adding duplicate role
+      result[result.length - 1].parts[0].text += "\n" + msg.content;
+    } else {
+      result.push({
+        role,
+        parts: [{ text: msg.content }],
+      });
+    }
+  }
+
+  // Must end with user role
+  if (result[result.length - 1]?.role !== "user") {
+    result.push({
+      role: "user",
+      parts: [{ text: "Please respond." }],
+    });
+  }
+
+  return result;
+}
+
+// 
 // EXPORTED CONVEX ACTIONS
 // 
 
@@ -531,58 +597,22 @@ export const chat = action({
       : lastUserMessage;
     const finalMessages = [...args.messages.slice(0, -1), modifiedLastMessage];
 
-    // Build Gemini contents  strictly alternating user/model roles
-    const contents = [
-      { role: "user",  parts: [{ text: systemPrompt }] },
-      { role: "model", parts: [{ text: "Understood. I am ready to help." }] },
-      ...finalMessages.map((m) => ({
-        role:  m.role === "user" ? "user" : "model",
-        parts: [{ text: m.content }],
-      })),
-    ];
+    const validContents = buildGeminiContents(systemPrompt, finalMessages);
 
-    // Validate and fix Gemini contents: must start with user, must alternate roles
-    function validateAndFixContents(raw) {
-      if (!raw || raw.length === 0) return raw;
-      let arr = raw[0].role !== "user"
-        ? [{ role: "user", parts: [{ text: "Hello" }] }, ...raw]
-        : [...raw];
-      const fixed = [arr[0]];
-      for (let i = 1; i < arr.length; i++) {
-        if (arr[i].role === fixed[fixed.length - 1].role) {
-          // Merge consecutive same-role turns
-          fixed[fixed.length - 1].parts[0].text += " " + arr[i].parts[0].text;
-        } else {
-          fixed.push(arr[i]);
-        }
-      }
-      if (fixed[fixed.length - 1].role !== "user") {
-        fixed.push({ role: "user", parts: [{ text: "Please respond." }] });
-      }
-      return fixed;
-    }
-
-    const validContents = validateAndFixContents(contents);
-
-    // PRIMARY: Gemini Flash  low temperature for reliable script following
+    // PRIMARY: Gemini Flash - no Groq fallback (Groq corrupts Indian scripts)
     try {
-      const text = await callGemini(GEMINI_MODELS.FLASH, validContents, { maxTokens: 120, temperature: 0.3 });
+      const text = await callGemini(GEMINI_MODELS.FLASH, validContents, { maxTokens: 150, temperature: 0.3 });
       return { content: cleanAIResponse(text), model: GEMINI_MODELS.FLASH };
-    } catch (geminiErr) {
-      console.error("Gemini chat failed:", geminiErr.message);
-    }
-
-    // FALLBACK: Groq  note: Indian language accuracy is poor in Groq
-    try {
-      const groqMessages = [
-        { role: "system", content: systemPrompt },
-        ...finalMessages,
-      ];
-      const result = await callGroqText(groqMessages, 120);
-      return { content: cleanAIResponse(result.content), model: result.model };
-    } catch (groqErr) {
-      console.error("All AI models failed for chat:", groqErr.message);
-      return { content: "Sorry, having trouble connecting right now. Please try again.", model: "error-fallback" };
+    } catch (geminiError) {
+      console.error("Gemini error in copilot:", geminiError.message);
+      const errorMessages = {
+        hi: "\u0915\u094D\u0937\u092E\u093E \u0915\u0930\u0947\u0902, \u0905\u092D\u0940 \u0915\u0928\u0947\u0915\u094D\u0936\u0928 \u092E\u0947\u0902 \u0938\u092E\u0938\u094D\u092F\u093E \u0939\u0948\u0964 \u0915\u0943\u092A\u092F\u093E \u0926\u094B\u092C\u093E\u0930\u093E \u0915\u094B\u0936\u093F\u0936 \u0915\u0930\u0947\u0902\u0964",
+        kn: "\u0C95\u0CCD\u0CB7\u0CAE\u0CBF\u0CB8\u0CBF, \u0CB8\u0C82\u0CAA\u0CB0\u0CCD\u0C95 \u0CB8\u0CAE\u0CB8\u0CCD\u0CAF\u0CC6 \u0C87\u0CA6\u0CC6. \u0CA6\u0CAF\u0CB5\u0CBF\u0C9F\u0CCD\u0C9F\u0CC1 \u0CAE\u0CA4\u0CCD\u0CA4\u0CC6 \u0CAA\u0CCD\u0CB0\u0CAF\u0CA4\u0CCD\u0CA8\u0CBF\u0CB8\u0CBF.",
+        ta: "\u0BAE\u0BA9\u0BCD\u0BA9\u0BBF\u0B95\u0BCD\u0B95\u0BB5\u0BC1\u0BAE\u0BCD, \u0B87\u0BA3\u0BC8\u0BAA\u0BCD\u0BAA\u0BC1 \u0B9A\u0BBF\u0B95\u0BCD\u0B95\u0BB2\u0BCD. \u0BAE\u0BC0\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD \u0BAE\u0BC1\u0BAF\u0BB1\u0BCD\u0B9A\u0BBF\u0B95\u0BCD\u0B95\u0BB5\u0BC1\u0BAE\u0BCD.",
+        te: "\u0C15\u0C4D\u0C37\u0C2E\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F, \u0C15\u0C28\u0C46\u0C15\u0C4D\u0C37\u0C28\u0C4D \u0C38\u0C2E\u0C38\u0C4D\u0C2F. \u0C26\u0C2F\u0C1A\u0C47\u0C38\u0C3F \u0C2E\u0C33\u0C4D\u0C33\u0C40 \u0C2A\u0C4D\u0C30\u0C2F\u0C24\u0C4D\u0C28\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F.",
+        en: "Sorry, having trouble connecting. Please try again.",
+      };
+      return { content: errorMessages[language] || errorMessages.en, model: "error-fallback" };
     }
   },
 });

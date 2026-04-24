@@ -381,7 +381,7 @@ function CopilotPageInner() {
             flexDirection: "column",
             alignItems: "center",
             padding: "40px 20px",
-            paddingBottom: "280px",
+            paddingBottom: "300px",
           }}
         >
           <motion.div
@@ -447,7 +447,7 @@ function CopilotPageInner() {
             display: "flex",
             flexDirection: "column",
             gap: 10,
-            paddingBottom: "280px",
+            paddingBottom: "300px",
           }}
         >
           {displayMessages.map((msg, i) => {
@@ -468,7 +468,7 @@ function CopilotPageInner() {
             );
           })}
           {isTyping && <TypingIndicator />}
-          <div ref={endRef} style={{ height: 1 }} />
+          <div ref={endRef} style={{ height: "20px" }} />
         </div>
       )}
       </div>
