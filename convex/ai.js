@@ -607,28 +607,19 @@ export const chat = action({
       console.error("Gemini error in copilot:", geminiError.message);
     }
 
-    // FALLBACK: Groq for English only (Groq corrupts Indian scripts)
-    if (language === "en") {
-      try {
-        const groqMessages = [
-          { role: "system", content: systemPrompt },
-          ...finalMessages,
-        ];
-        const result = await callGroqText(groqMessages, 150);
-        return { content: cleanAIResponse(result.content), model: result.model };
-      } catch (groqErr) {
-        console.error("Groq fallback also failed:", groqErr.message);
-      }
+    // FALLBACK: Groq (all languages — Gemini unavailable)
+    try {
+      const groqMessages = [
+        { role: "system", content: systemPrompt },
+        ...finalMessages,
+      ];
+      const result = await callGroqText(groqMessages, 150);
+      return { content: cleanAIResponse(result.content), model: result.model };
+    } catch (groqErr) {
+      console.error("Groq fallback also failed:", groqErr.message);
     }
 
-    const errorMessages = {
-      hi: "\u0915\u094D\u0937\u092E\u093E \u0915\u0930\u0947\u0902, \u0905\u092D\u0940 \u0915\u0928\u0947\u0915\u094D\u0936\u0928 \u092E\u0947\u0902 \u0938\u092E\u0938\u094D\u092F\u093E \u0939\u0948\u0964 \u0915\u0943\u092A\u092F\u093E \u0926\u094B\u092C\u093E\u0930\u093E \u0915\u094B\u0936\u093F\u0936 \u0915\u0930\u0947\u0902\u0964",
-      kn: "\u0C95\u0CCD\u0CB7\u0CAE\u0CBF\u0CB8\u0CBF, \u0CB8\u0C82\u0CAA\u0CB0\u0CCD\u0C95 \u0CB8\u0CAE\u0CB8\u0CCD\u0CAF\u0CC6 \u0C87\u0CA6\u0CC6. \u0CA6\u0CAF\u0CB5\u0CBF\u0C9F\u0CCD\u0C9F\u0CC1 \u0CAE\u0CA4\u0CCD\u0CA4\u0CC6 \u0CAA\u0CCD\u0CB0\u0CAF\u0CA4\u0CCD\u0CA8\u0CBF\u0CB8\u0CBF.",
-      ta: "\u0BAE\u0BA9\u0BCD\u0BA9\u0BBF\u0B95\u0BCD\u0B95\u0BB5\u0BC1\u0BAE\u0BCD, \u0B87\u0BA3\u0BC8\u0BAA\u0BCD\u0BAA\u0BC1 \u0B9A\u0BBF\u0B95\u0BCD\u0B95\u0BB2\u0BCD. \u0BAE\u0BC0\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD \u0BAE\u0BC1\u0BAF\u0BB1\u0BCD\u0B9A\u0BBF\u0B95\u0BCD\u0B95\u0BB5\u0BC1\u0BAE\u0BCD.",
-      te: "\u0C15\u0C4D\u0C37\u0C2E\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F, \u0C15\u0C28\u0C46\u0C15\u0C4D\u0C37\u0C28\u0C4D \u0C38\u0C2E\u0C38\u0C4D\u0C2F. \u0C26\u0C2F\u0C1A\u0C47\u0C38\u0C3F \u0C2E\u0C33\u0C4D\u0C33\u0C40 \u0C2A\u0C4D\u0C30\u0C2F\u0C24\u0C4D\u0C28\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F.",
-      en: "Sorry, having trouble connecting. Please try again.",
-    };
-    return { content: errorMessages[language] || errorMessages.en, model: "error-fallback" };
+    return { content: "Sorry, having trouble connecting. Please try again.", model: "error-fallback" };
   },
 });
 
