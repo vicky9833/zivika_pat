@@ -380,8 +380,7 @@ function CopilotPageInner() {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            padding: "40px 20px",
-            paddingBottom: "300px",
+            padding: "40px 20px 24px",
           }}
         >
           <motion.div
@@ -443,11 +442,10 @@ function CopilotPageInner() {
         /* Chat messages */
         <div
           style={{
-            padding: "12px 16px",
+            padding: "12px 16px 24px",
             display: "flex",
             flexDirection: "column",
             gap: 10,
-            paddingBottom: "300px",
           }}
         >
           {displayMessages.map((msg, i) => {
@@ -473,18 +471,16 @@ function CopilotPageInner() {
       )}
       </div>
 
-      {/* â”€â”€ SECTIONS 4+5: Fixed input bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── SECTIONS 4+5: Bottom bar (in-flow, not fixed) ───────────────── */}
       <div
         style={{
-          position: "fixed",
-          bottom: "calc(72px + env(safe-area-inset-bottom, 0px))",
-          left: "50%",
-          transform: "translateX(-50%)",
+          flexShrink: 0,
           width: "100%",
-          maxWidth: 390,
           zIndex: 30,
           background: "#fff",
+          borderTop: "1px solid #F0F7F4",
           boxSizing: "border-box",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
         }}
       >
         {/* Language bar */}
@@ -539,7 +535,6 @@ function CopilotPageInner() {
         {/* Input row */}
         <div
           style={{
-            borderTop: "1px solid #F0F7F4",
             padding: "10px 16px",
             display: "flex",
             alignItems: "flex-end",
