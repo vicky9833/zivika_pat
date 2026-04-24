@@ -256,7 +256,8 @@ function CopilotPageInner() {
   const hasMessages = mode === "copilot" ? copilotChat.messages.length > 0 : doctorChat.messages.length > 0;
   const displayMessages = mode === "copilot" ? copilotChat.messages : doctorChat.messages;
   const canSend = inputText.trim().length > 0 && !isTyping;
-  const showLang = mode === "doctor" || showLangBar;
+  // Show language bar when: no messages yet (onboarding), doctor mode, or user toggled it
+  const showLang = !hasMessages || mode === "doctor" || showLangBar;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 64px)", overflow: "hidden", position: "relative", background: "#fff" }}>
@@ -422,10 +423,44 @@ function CopilotPageInner() {
               : "Ask any health question. I speak your language."}
           </motion.p>
 
+          {/* Language picker — prominent in empty state */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.18, duration: 0.22 }}
+            style={{ marginTop: 20, textAlign: "center", width: "100%" }}
+          >
+            <p style={{ fontFamily: B, fontSize: 11, color: "#8EBAA3", margin: "0 0 10px", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+              Choose your language
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8, padding: "0 16px" }}>
+              {LANGUAGES.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => setLanguage(lang.code)}
+                  style={{
+                    borderRadius: 20,
+                    padding: "7px 16px",
+                    fontSize: 13,
+                    border: language === lang.code ? "none" : "1.5px solid #DCE8E2",
+                    background: language === lang.code ? "#0D6E4F" : "#F0F7F4",
+                    color: language === lang.code ? "#fff" : "#5A7A6E",
+                    fontFamily: B,
+                    fontWeight: language === lang.code ? 600 : 400,
+                    cursor: "pointer",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.28 }}
+            transition={{ delay: 0.25, duration: 0.28 }}
             style={{ marginTop: 28, width: "100%" }}
           >
             <QuickPrompts
