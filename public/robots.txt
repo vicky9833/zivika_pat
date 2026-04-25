@@ -1,0 +1,32 @@
+User-agent: *
+Allow: /
+Allow: /onboarding
+Allow: /auth
+Allow: /terms
+Allow: /privacy
+Disallow: /dashboard/
+Disallow: /setup/
+Disallow: /api/
+Disallow: /sso-callback/
+
+Sitemap: https://care.zivikalabs.com/sitemap.xml
+
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 1
+
+User-agent: GPTBot
+Allow: /
+Allow: /terms
+Allow: /privacy
+Disallow: /dashboard/
+
+User-agent: anthropic-ai
+Allow: /
+Allow: /terms
+Allow: /privacy
+Disallow: /dashboard/
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /dashboard/
