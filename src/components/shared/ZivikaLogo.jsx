@@ -34,7 +34,8 @@ export default function ZivikaLogo({ showText = true, size = 40 }) {
             fill
             style={{ objectFit: "contain" }}
             priority
-            sizes={`${size * 2}px`}
+            sizes={`${size}px`}
+            quality={100}
             onError={() => setImgError(true)}
           />
         )}

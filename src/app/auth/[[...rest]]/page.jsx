@@ -128,7 +128,7 @@ export default function AuthPage() {
 
       {/* Logo */}
       <div style={{ marginBottom: "28px", textAlign: "center" }}>
-        <ZivikaLogo size={52} showText showTagline />
+        <ZivikaLogo size={68} showText showTagline />
       </div>
 
       {/* Clerk Component */}

@@ -23,6 +23,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  if (event.request.mode === "navigate") return;
   if (event.request.url.includes("/api/")) return;
   if (event.request.url.includes("convex.cloud")) return;
   if (event.request.url.includes("clerk")) return;
@@ -41,7 +42,15 @@ self.addEventListener("fetch", (event) => {
         return response;
       })
       .catch(() => {
-        return caches.match(event.request);
+        return caches.match(event.request).then(
+          (cached) =>
+            cached ||
+            new Response("Network error", {
+              status: 504,
+              statusText: "Gateway Timeout",
+              headers: { "Content-Type": "text/plain" },
+            })
+        );
       })
   );
 });
