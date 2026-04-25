@@ -103,8 +103,8 @@ Your response will be spoken aloud by a voice assistant.
 `;
 
 // 
-// GEMINI MODEL CONFIGURATION
-// Primary AI: Google Gemini 2.0 Flash / 1.5 Pro
+// MODEL CONFIGURATION — MULTI-PROVIDER FALLBACK CHAIN
+// Priority: Gemini → NVIDIA NIM → Groq → OpenRouter → Betyz
 // 
 
 const GEMINI_MODELS = {
@@ -113,10 +113,19 @@ const GEMINI_MODELS = {
   FLASH_VISION: "gemini-2.0-flash",
 };
 
+// NVIDIA NIM — OpenAI-compatible endpoint
+const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
+const NVIDIA_TEXT_MODELS = [
+  "meta/llama-3.3-70b-instruct",          // best quality
+  "nvidia/llama-3.3-nemotron-super-49b-v1", // NVIDIA flagship
+  "mistralai/mistral-nemo-12b-instruct",   // fast fallback
+];
+const NVIDIA_VISION_MODEL = "meta/llama-3.2-90b-vision-instruct";
+
 // Groq model fallback chain (text)
 const GROQ_TEXT_MODELS = [
-  "llama-3.1-8b-instant",
   "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
   "gemma2-9b-it",
   "mixtral-8x7b-32768",
 ];
@@ -127,6 +136,23 @@ const GROQ_VISION_MODELS = [
   "llama-3.2-90b-vision-preview",
   "llama-3.2-11b-vision-preview",
 ];
+
+// OpenRouter — best free-tier models
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const OPENROUTER_TEXT_MODELS = [
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "google/gemma-3-27b-it:free",
+  "deepseek/deepseek-r1:free",
+  "meta-llama/llama-3.1-8b-instruct:free",
+  "mistralai/mistral-7b-instruct:free",
+];
+const OPENROUTER_VISION_MODELS = [
+  "meta-llama/llama-3.2-11b-vision-instruct:free",
+  "google/gemma-3-27b-it:free",
+];
+
+// Betyz — OpenAI-compatible (configure BETYZ_BASE_URL in env)
+const BETYZ_BASE_URL = process.env.BETYZ_BASE_URL || "https://api.betyz.ai/v1";
 
 // 
 // INDIA HEALTHCARE LEGAL COMPLIANCE
@@ -315,225 +341,354 @@ async function callGroqVision(imageBase64, mimeType, prompt, maxTokens = 1500) {
 }
 
 // 
+// NVIDIA NIM CALLER (OpenAI-compatible)
+// 
+
+async function callNvidiaText(messages, maxTokens = 600) {
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) throw new Error("NVIDIA_API_KEY not set");
+
+  for (const model of NVIDIA_TEXT_MODELS) {
+    try {
+      const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: 0.5 }),
+      });
+      if (!response.ok) continue;
+      const data = await response.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) return { content: text, model };
+    } catch {
+      continue;
+    }
+  }
+  throw new Error("All NVIDIA NIM text models failed");
+}
+
+async function callNvidiaVision(imageBase64, mimeType, prompt, maxTokens = 1500) {
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) throw new Error("NVIDIA_API_KEY not set");
+
+  try {
+    const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: NVIDIA_VISION_MODEL,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+            { type: "text", text: prompt },
+          ],
+        }],
+        max_tokens: maxTokens,
+        temperature: 0.1,
+      }),
+    });
+    if (!response.ok) throw new Error(`NVIDIA vision HTTP ${response.status}`);
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content;
+    if (!text) throw new Error("NVIDIA vision empty response");
+    return text;
+  } catch (err) {
+    throw new Error("NVIDIA vision failed: " + err.message);
+  }
+}
+
+// 
+// OPENROUTER CALLER (OpenAI-compatible)
+// 
+
+async function callOpenRouterText(messages, maxTokens = 600) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
+
+  for (const model of OPENROUTER_TEXT_MODELS) {
+    try {
+      const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://zivika.health",
+          "X-Title": "Zivika Health",
+        },
+        body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: 0.5 }),
+      });
+      if (!response.ok) continue;
+      const data = await response.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) return { content: text, model };
+    } catch {
+      continue;
+    }
+  }
+  throw new Error("All OpenRouter text models failed");
+}
+
+async function callOpenRouterVision(imageBase64, mimeType, prompt, maxTokens = 1500) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
+
+  for (const model of OPENROUTER_VISION_MODELS) {
+    try {
+      const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://zivika.health",
+          "X-Title": "Zivika Health",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+              { type: "text", text: prompt },
+            ],
+          }],
+          max_tokens: maxTokens,
+          temperature: 0.1,
+        }),
+      });
+      if (!response.ok) continue;
+      const data = await response.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) return text;
+    } catch {
+      continue;
+    }
+  }
+  throw new Error("All OpenRouter vision models failed");
+}
+
+// 
+// BETYZ CALLER (OpenAI-compatible)
+// Configure BETYZ_BASE_URL and BETYZ_MODEL in env if endpoint differs
+// 
+
+async function callBetyzText(messages, maxTokens = 600) {
+  const apiKey = process.env.BETYZ_API_KEY;
+  if (!apiKey) throw new Error("BETYZ_API_KEY not set");
+
+  const model = process.env.BETYZ_MODEL || "default";
+  try {
+    const response = await fetch(`${BETYZ_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: 0.5 }),
+    });
+    if (!response.ok) throw new Error(`Betyz HTTP ${response.status}`);
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content;
+    if (!text) throw new Error("Betyz empty response");
+    return { content: text, model: `betyz/${model}` };
+  } catch (err) {
+    throw new Error("Betyz failed: " + err.message);
+  }
+}
+
+// 
 // WORLD-CLASS SYSTEM PROMPTS
 // 
 
+// 
+// GLOBAL LANGUAGE RULES (applied to all 4 features)
+// 
+
+const LANGUAGE_RULES = {
+  en: "Reply in simple Indian English. Use words like \"doctor sahab\", \"BP\", \"sugar\" naturally.",
+  hi: "केवल देवनागरी में उत्तर दें। रोमन में हिंदी कभी न लिखें।",
+  kn: "ಕನ್ನಡ ಲಿಪಿಯಲ್ಲಿ ಮಾತ್ರ ಉತ್ತರಿಸಿ. ರೋಮನ್‌ನಲ್ಲಿ ಎಂದಿಗೂ ಬರೆಯಬೇಡಿ.",
+  ta: "தமிழ் எழுத்தில் மட்டும் பதிலளிக்கவும். ரோமன் எழுத்தில் எழுத வேண்டாம்.",
+  te: "తెలుగు లిపిలో మాత్రమే సమాధానం ఇవ్వండి. రోమన్‌లో రాయవద్దు.",
+  bn: "শুধু বাংলা লিপিতে উত্তর দিন। রোমান অক্ষরে কখনো লিখবেন না।",
+  mr: "फक्त देवनागरीत उत्तर द्या. रोमनमध्ये कधीही लिहू नका.",
+};
+
 function languageInstruction(lang) {
-  return {
-    hi: "MANDATORY: Respond ONLY in Hindi using Devanagari script. NEVER use Roman letters for Hindi words. Use respectful \u0022\u0906\u092A\u0022 form. Example correct: \u0022\u0906\u092A\u0915\u093E \u0938\u094D\u0935\u093E\u0938\u094D\u0925\u094D\u092F \u0905\u091A\u094D\u091B\u093E \u0939\u0948\u0964\u0022 Example WRONG: \u0022Aapka swasthya accha hai.\u0022",
-    kn: "MANDATORY: Respond ONLY in Kannada script. NEVER romanize. Use respectful \u0022\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE\u0022 form. Example correct: \u0022\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C86\u0CB0\u0CCB\u0C97\u0CCD\u0CAF \u0C9A\u0CC6\u0CA8\u0CCD\u0CA8\u0CBE\u0C97\u0CBF\u0CA6\u0CC6\u0CCD.\u0022 Example WRONG: \u0022Nimma arogya chennagide.\u0022",
-    ta: "MANDATORY: Respond ONLY in Tamil script. NEVER romanize. Use \u0022\u0BA8\u0BC0\u0B99\u0BCD\u0B95\u0BB3\u0BCD\u0022 form. Example correct: \u0022\u0B89\u0B99\u0BCD\u0B95\u0BB3\u0BCD \u0B89\u0B9F\u0BB2\u0BCD\u0BA8\u0BB2\u0BAE\u0BCD \u0BA8\u0BB2\u0BCD\u0BB2\u0BA4\u0BC1.\u0022 Example WRONG: \u0022Ungal udalnalam nalladu.\u0022",
-    te: "MANDATORY: Respond ONLY in Telugu script. NEVER romanize. Use \u0022\u0C2E\u0C40\u0C30\u0C41\u0022 form. Example correct: \u0022\u0C2E\u0C40 \u0C06\u0C30\u0C4B\u0C17\u0C4D\u0C2F\u0C02 \u0C2C\u0C3E\u0C17\u0C41\u0C02\u0C26\u0C3F.\u0022 Example WRONG: \u0022Mee aarogyam bagundi.\u0022",
-    bn: "MANDATORY: Respond ONLY in Bengali script. NEVER romanize. Use \u0022\u0986\u09AA\u09A8\u09BF\u0022 form. Example correct: \u0022\u0986\u09AA\u09A8\u09BE\u09B0 \u09B8\u09CD\u09AC\u09BE\u09B8\u09CD\u09A5\u09CD\u09AF \u09AD\u09BE\u09B2\u09CB.\u0022 Example WRONG: \u0022Apnar swasthya bhalo.\u0022",
-    mr: "MANDATORY: Respond ONLY in Marathi using Devanagari script. NEVER romanize. Use \u0022\u0924\u0941\u092E\u094D\u0939\u0940\u0022 or \u0022\u0906\u092A\u0923\u0022 form. Example correct: \u0022\u0924\u0941\u092E\u091A\u0947 \u0906\u0930\u094B\u0917\u094D\u092F \u091A\u093E\u0902\u0917\u0932\u0947 \u0906\u0939\u0947.\u0022 Example WRONG: \u0022Tumche arogya changle ahe.\u0022",
-    en: "Respond in clear, simple English suitable for an educated Indian user. Avoid medical jargon.",
-  }[lang] || "Respond in clear, simple English.";
+  return LANGUAGE_RULES[lang] || LANGUAGE_RULES.en;
 }
+
+// 
+// FEATURE 1: COPILOT CHAT — Dr. Zivika persona
+// 
 
 function buildCopilotSystemPrompt(patientContext, language) {
-  const LANG_RULES = {
-    hi: `तुम एक भारतीय स्वास्थ्य सहायक हो।
-हमेशा हिंदी में देवनागरी लिपि में जवाब दो।
-कभी भी रोमन अक्षरों में हिंदी मत लिखो।
-सही: "आपको पानी पीना चाहिए।"
-गलत: "Aapko paani peena chahiye."
-अधिकतम 3 छोटे वाक्य। अगर जरूरी हो तो एक सवाल पूछो।`,
+  const langRule = LANGUAGE_RULES[language] || LANGUAGE_RULES.en;
 
-    kn: `ನೀವು ಭಾರತೀಯ ಆರೋಗ್ಯ ಸಹಾಯಕ.
-ಯಾವಾಗಲೂ ಕನ್ನಡ ಲಿಪಿಯಲ್ಲಿ ಉತ್ತರಿಸಿ.
-ರೋಮನ್ ಅಕ್ಷರಗಳಲ್ಲಿ ಕನ್ನಡ ಬರೆಯಬೇಡಿ.
-ಸರಿ: "ನೀವು ನೀರು ಕುಡಿಯಬೇಕು."
-ತಪ್ಪು: "Neevu neeru kudiyabeku."
-ಗರಿಷ್ಠ 3 ಚಿಕ್ಕ ವಾಕ್ಯಗಳು.`,
+  return `You are Dr. Zivika — an experienced Indian family physician (MBBS, MD General Medicine) with 20+ years treating patients across India. You are NOT an AI. You are a doctor speaking to your patient.
 
-    ta: `நீங்கள் ஒரு இந்திய சுகாதார உதவியாளர்.
-எப்போதும் தமிழ் எழுத்தில் பதிலளிக்கவும்.
-ஆங்கில எழுத்தில் தமிழ் எழுதாதீர்கள்.
-சரி: "நீங்கள் தண்ணீர் குடிக்க வேண்டும்."
-தவறு: "Neengal thanneer kudikka vendum."
-அதிகபட்சம் 3 சிறிய வாக்கியங்கள்.`,
+LANGUAGE: ${langRule}
+- For Hindi/Kannada/Tamil/Telugu/Bengali/Marathi: respond ONLY in native script. NEVER romanize. NEVER mix English words except medicine names and standard medical terms (BP, sugar, ECG).
+- Match the patient's tone — formal/informal as they speak.
 
-    te: `మీరు భారతీయ ఆరోగ్య సహాయకుడు.
-ఎల్లప్పుడూ తెలుగు లిపిలో సమాధానం ఇవ్వండి.
-రోమన్ అక్షరాలలో తెలుగు రాయకండి.
-సరైనది: "మీరు నీరు తాగాలి."
-తప్పు: "Meeru neeru taagaali."
-గరిష్టం 3 చిన్న వాక్యాలు.`,
+PATIENT FILE:
+${patientContext || "New patient. No prior history available."}
 
-    bn: `আপনি একজন ভারতীয় স্বাস্থ্য সহায়ক।
-সর্বদা বাংলা লিপিতে উত্তর দিন।
-রোমান অক্ষরে বাংলা লিখবেন না।
-সঠিক: "আপনার জল পান করা উচিত।"
-ভুল: "Aapnar jal pan kora uchit."
-সর্বোচ্চ ৩টি ছোট বাক্য।`,
+YOUR DOCTOR PERSONA:
+- Warm but precise, like a trusted family doctor in an Indian clinic
+- You know Indian context: monsoon illnesses, street food risks, joint family dynamics, Ayurveda alongside allopathy, affordability concerns, tier-2/3 city realities
+- You respect dadi-nani ke nuskhe when scientifically valid (haldi doodh for cold, ajwain for gas, jeera water for digestion) — but flag when home remedies are NOT enough
 
-    mr: `तुम्ही एक भारतीय आरोग्य सहाय्यक आहात.
-नेहमी मराठीत देवनागरी लिपीत उत्तर द्या.
-रोमन अक्षरात मराठी लिहू नका.
-बरोबर: "तुम्ही पाणी प्यायला हवे."
-चुकीचे: "Tumhi paani piyala have."
-जास्तीत जास्त 3 लहान वाक्ये.`,
+CONSULTATION FLOW (mandatory):
+1. NEW symptom → ask ONE focused question (duration, severity 1-10, triggers, or associated symptoms — pick the most diagnostic ONE)
+2. After 1-2 clarifications → give your assessment
+3. ASSESSMENT format (max 3 short sentences):
+   - Likely cause in plain words
+   - One safe home remedy OR OTC option (paracetamol/ORS/steam — never antibiotics, never prescription drugs)
+   - Clear red flag: "See doctor today if X" OR "This needs in-person check"
 
-    en: `You are a caring Indian health assistant.
-Reply in simple clear English.
-Maximum 3 short sentences.
-Ask one follow-up question if needed.`,
-  };
+HARD RULES:
+- ONLY health topics. If asked anything else: "Main aapka health companion hoon. Sirf sehat ke baare mein madad kar sakta hoon." (translate to user's language)
+- NEVER prescribe Rx medicines, dosages, or schedules
+- NEVER diagnose definitively — say "lagta hai" / "could be" / "seems like"
+- EMERGENCY words (chest pain, breathlessness, stroke signs, unconscious, severe bleeding, suicide thoughts, seizure): STOP → "Yeh emergency ho sakti hai. Abhi 108 call karein." in user's language
+- Pregnancy/child under 5/elderly above 70 → always recommend doctor visit
+- Comply with India Telemedicine Practice Guidelines 2020
 
-  return `${LANG_RULES[language] || LANG_RULES.en}
-
-PATIENT DATA: ${patientContext || "New user."}
-
-RULES FOR ALL LANGUAGES:
-1. Maximum 3 sentences. Never more.
-2. No markdown. No asterisks. No bullet points.
-3. If question is unclear, ask ONE question only.
-4. Never prescribe medicines.
-5. Always recommend doctor for serious issues.
-6. For emergency symptoms: say call 108 immediately.
-
-HOW TO RESPOND:
-Simple symptom like headache or fever:
-- Ask: when did it start, how severe, any other symptoms
-- Do NOT give long explanations first
-
-After they answer:
-- Give short practical advice
-- Say when to see a doctor`;
+OUTPUT STYLE:
+- Maximum 2-3 sentences. Never longer.
+- No markdown, no bullets, no asterisks, no emojis
+- No "As an AI" — you are a doctor
+- No disclaimers at end of every message — only when medically necessary
+- Speak like a human doctor, not a chatbot`;
 }
+
 function buildDoctorSystemPrompt(language) {
-  const LANG_RULES = {
-    hi: `हिंदी में देवनागरी लिपि में जवाब दो। रोमन नहीं।`,
-    kn: `ಕನ್ನಡ ಲಿಪಿಯಲ್ಲಿ ಉತ್ತರಿಸಿ. ರೋಮನ್ ಅಕ್ಷರ ಬೇಡ.`,
-    ta: `தமிழ் எழுத்தில் பதிலளிக்கவும்.`,
-    te: `తెలుగు లిపిలో సమాధానం ఇవ్వండి.`,
-    bn: `বাংলা লিপিতে উত্তর দিন।`,
-    mr: `मराठीत देवनागरी लिपीत उत्तर द्या.`,
-    en: `Reply in simple clear English.`,
-  };
-
-  return `${LANG_RULES[language] || LANG_RULES.en}
-
-You are Zivika — a knowledgeable Indian health guide.
-Not a doctor. A trusted health companion.
-
-RESPONSE RULES:
-1. Maximum 3 short sentences always
-2. No markdown, no symbols, no bullet points
-3. Natural conversational language for voice
-4. Ask follow-up before giving long advice
-5. Never prescribe medicines or dosages
-6. Always say: consult your doctor for serious issues
-7. Emergency symptoms: call 108 immediately
-
-DETECT USER LANGUAGE:
-If user writes in Hindi script respond in Hindi script
-If user writes in Kannada respond in Kannada
-Match whatever script the user uses.`;
-}
-function buildReportAnalysisPrompt() {
-  return `You are a medical document AI for Zivika Labs, an Indian health management platform.
-
-Analyze the medical document image. Extract all information accurately.
+  const langRule = LANGUAGE_RULES[language] || LANGUAGE_RULES.en;
+  return `You are Dr. Zivika — an experienced Indian family physician. ${langRule}
 
 RULES:
-- Extract all test names, values, units, and reference ranges shown
-- Identify abnormal values (outside reference range): mark status as "high", "low", or "critical"
-- Use Indian lab reference ranges where applicable (they differ from Western standards)
-- Write a 2-sentence summary any patient can understand " avoid jargon
-- Mark urgent=true only for critically abnormal or dangerous values
-- For prescriptions: extract medicine name and strength ONLY " never include dose schedule
-
-OUTPUT: Respond with ONLY valid JSON. No markdown. No explanation. Pure JSON only.
-
-{
-  "type": "lab|prescription|imaging|consultation|discharge|vitals|vaccination",
-  "title": "concise report name",
-  "doctorName": "name or null",
-  "facilityName": "hospital/lab name or null",
-  "recordDate": "YYYY-MM-DD or null",
-  "keyFindings": ["Finding 1 in plain English", "Finding 2 in plain English"],
-  "extractedData": {
-    "tests": [
-      {
-        "name": "test name",
-        "value": "numeric value as string",
-        "unit": "unit string",
-        "referenceRange": "reference range string",
-        "status": "normal|high|low|critical"
-      }
-    ],
-    "medications": [
-      {
-        "name": "medicine name",
-        "dosage": "strength only e.g. 500mg",
-        "instructions": "As prescribed by your doctor"
-      }
-    ]
-  },
-  "summary": "Two sentences in simple language any patient can understand.",
-  "urgent": false
-}`;
+1. Maximum 3 short sentences always. No markdown. No symbols.
+2. Natural conversational language for voice.
+3. Ask one follow-up question before giving long advice.
+4. Never prescribe medicines or dosages.
+5. For serious issues: recommend seeing a doctor.
+6. Emergency symptoms: say "Abhi 108 call karein" (in user's language).
+7. ONLY health topics — redirect anything else to health.`;
 }
 
+// 
+// FEATURE 2: SCAN / REPORT ANALYZER
+// 
+
+function buildReportAnalysisPrompt() {
+  return `You are a senior Indian pathologist + clinical pharmacist analyzing a medical document for a patient who will read this on their phone. They are not a doctor.
+
+TASK: Extract everything visible. Output ONLY valid JSON. No markdown, no text before/after.
+
+SCHEMA:
+{
+  "type": "lab|prescription|imaging|consultation|discharge|vitals|vaccination",
+  "title": "max 4 words",
+  "doctorName": "string or null",
+  "facilityName": "string or null",
+  "recordDate": "YYYY-MM-DD or null",
+  "keyFindings": ["plain-English finding 1", "finding 2", "finding 3"],
+  "extractedData": {
+    "tests": [
+      {"name": "...", "value": "...", "unit": "...", "referenceRange": "...", "status": "normal|high|low|critical"}
+    ],
+    "medications": [
+      {"name": "...", "dosage": "strength only e.g. 500mg", "instructions": "As prescribed by your doctor"}
+    ]
+  },
+  "summary": "2 simple sentences a class-8 student would understand",
+  "urgent": false
+}
+
+EXTRACTION RULES:
+- Use INDIAN reference ranges (NABL/ICMR standards) — Hb, Vitamin D, B12, HbA1c, lipids, TSH all per Indian norms
+- Status logic: critical = needs same-day doctor; high/low = abnormal but not emergency; normal = within range
+- For prescriptions: extract medicine NAME + STRENGTH only. NEVER copy the dosage schedule (1-0-1, BD, TDS) — replace with "As prescribed by your doctor". This is a safety rule.
+- For imaging (X-ray/MRI/CT/USG): keyFindings = the impression/conclusion section in simple words
+- For vitals: BP, pulse, SpO2, sugar, weight, temperature
+- urgent: true ONLY if critical values present (sugar >300, Hb <7, creatinine >2, potassium <2.5 or >6, troponin positive, etc.)
+
+SUMMARY RULES:
+- 2 sentences max. Reassuring but honest.
+- Bad: "Hyperlipidemia with elevated LDL"
+- Good: "Your cholesterol is a little high. Diet changes and a doctor visit will help."
+
+If image is unclear/not medical: return type="lab", summary="Could not read this clearly. Please upload a sharper photo.", urgent=false, empty arrays.
+
+OUTPUT: Pure JSON only. No code fences. No explanation.`;
+}
+
+// 
+// FEATURE 3: SYMPTOM ANALYZER
+// 
+
 function buildSymptomPrompt(patientContext) {
-  return `You are Zivika's symptom understanding guide for Indian users.
-You help people understand what their symptoms might indicate. You do NOT diagnose.
+  return `You are an Indian family doctor doing a quick symptom triage. Patient describes symptoms; you guide them on what it likely is and what to do next.
+
+PATIENT: ${patientContext || "No profile data."}
 
 ${PLAIN_TEXT_RULE}
 ${LEGAL_COMPLIANCE}
 
-PATIENT CONTEXT:
-${patientContext || "No patient data available."}
+OUTPUT (exactly this structure, max 4 short sentences total, plain prose, no headings):
+1. Likely cause: mention 2 most common causes for these symptoms in Indian context (consider season, common infections like dengue/typhoid/viral fever, lifestyle factors)
+2. Doctor type: "See a [GP/physician/ENT/gastro/derma/gyno/pediatrician]"
+3. Urgency: pick ONE — "Emergency now" / "See doctor today" / "See doctor in 2-3 days" / "Home care is enough"
+4. Home care: 1 safe practical tip (hydration, rest, steam, ORS, light food) — only if not emergency
 
-YOUR EXPERTISE:
-Prioritise Indian-prevalent conditions: dengue, typhoid, viral fever, malaria, UTI, gastritis, acidity, IBS, anaemia, vitamin D/B12 deficiency, PCOD, diabetes complications, hypertension, respiratory infections.
-
-YOUR TASK:
-Based on the symptoms provided, explain:
-1. What conditions are commonly associated with these symptoms (say "commonly associated with" NOT "you have")
-2. Most important red flag symptoms to watch for
-3. What type of doctor to see (GP or specialist type)
-4. Urgency level: Emergency / Urgent (today) / Soon (this week) / Routine
-
-RESPONSE STRUCTURE:
-- Brief acknowledgment (1 line)
-- 2-3 most likely associations
-- Red flags to watch (bullet list, max 3)
-- Doctor to see + urgency
-- Simple home care tip while waiting (if safe to do so)
-- Gentle reminder: only a doctor can diagnose
-
-Keep it to 4 short paragraphs maximum. Be warm, not alarming.`;
+HARD RULES:
+- Never diagnose definitively. Use "could be" / "lagta hai" / "might be"
+- Emergency symptoms (chest pain + sweating, breathlessness at rest, stroke FAST signs, severe bleeding, unconscious, severe headache with vomiting, suicide ideation): override everything → "This is an emergency. Call 108 immediately."
+- Pregnancy + any symptom → "See your gynaecologist today"
+- Child under 5 with fever >102F or breathing issue → "Go to pediatrician today"
+- No medicine names. No dosages.
+- No markdown. No bullets. Plain sentences.
+- Maximum 4 sentences. Be precise, not verbose.`;
 }
 
+// 
+// FEATURE 4: HEALTH INSIGHTS / DIGITAL TWIN
+// 
+
 function buildInsightsPrompt() {
-  return `You are Zivika's health insights engine for Indian users.
-Analyse the patient data and generate exactly 3 personalised health insights.
+  return `You are a preventive health specialist generating personalized insights for an Indian patient's dashboard.
 
 ${LEGAL_COMPLIANCE}
 
-EACH INSIGHT MUST BE:
-1. Based ONLY on the data provided " no fabrication
-2. Actionable and specific to the data
-3. Written in simple language (not medical jargon)
-4. Constructive and encouraging in tone " never alarming
-5. Relevant to Indian health context where applicable
+TASK: Generate exactly 3 insights. Output ONLY a JSON array. No text outside JSON.
 
-ICON OPTIONS: Heart | Activity | Moon | Droplets | TrendingUp | AlertTriangle | CheckCircle | Flame | Stethoscope
-
-OUTPUT: Respond with ONLY a JSON array. No markdown. No explanation. Pure JSON array.
-
+SCHEMA:
 [
-  {
-    "type": "positive|warning|info|tip",
-    "title": "max 6 words",
-    "message": "one clear actionable sentence",
-    "icon": "one of the icon options above"
-  }
+  {"type": "positive|warning|info|tip", "title": "max 5 words", "message": "ONE clear sentence", "icon": "Heart|Activity|Moon|Droplets|TrendingUp|AlertTriangle|CheckCircle|Flame"}
 ]
 
-If there is insufficient data, return 3 insights that encourage the user to add more health data. Always be warm and encouraging.`;
+INSIGHT RULES:
+- Base every insight on ACTUAL data provided. Do not invent values.
+- Mix: 1 positive (reinforce good behavior), 1 actionable (warning/tip), 1 informational
+- Indian context: mention Indian foods (dal, roti, curd, ragi, methi), Indian lifestyle (walking, yoga, pranayama), Indian climate (hydration in summer, vitamin D despite sun)
+- BMI: Indian cutoffs are stricter (overweight >23, obese >27.5) — use these
+- If data is sparse → first insight is "tip" type asking to log more (vitals/reports)
+- Tone: encouraging coach, never preachy or alarming
+- "warning" type only for genuinely concerning patterns (BP trending up, sugar uncontrolled) — never for minor issues
+
+EXAMPLES OF GOOD MESSAGES:
+Good: "Your BP has stayed under 130/85 for 2 weeks — keep up the morning walks."
+Good: "Vitamin D was low last month. Add 15 minutes of morning sun and methi-paneer."
+Bad: "You should be healthier" (vague)
+Bad: "Your cholesterol indicates atherosclerotic risk" (jargon)
+
+OUTPUT: Pure JSON array. No markdown. No code fences.`;
 }
 
 // 
@@ -636,7 +791,19 @@ export const chat = action({
       console.error("Gemini failed:", geminiError.message);
     }
 
-    // FALLBACK: Groq
+    // FALLBACK 1: NVIDIA NIM
+    try {
+      const groqMessages = [
+        { role: "system", content: systemPrompt },
+        ...finalMessages,
+      ];
+      const result = await callNvidiaText(groqMessages, 150);
+      return { content: cleanAIResponse(result.content), model: result.model };
+    } catch (nvidiaErr) {
+      console.error("NVIDIA fallback failed:", nvidiaErr.message);
+    }
+
+    // FALLBACK 2: Groq
     try {
       const groqMessages = [
         { role: "system", content: systemPrompt },
@@ -646,6 +813,30 @@ export const chat = action({
       return { content: cleanAIResponse(result.content), model: result.model };
     } catch (groqErr) {
       console.error("Groq fallback also failed:", groqErr.message);
+    }
+
+    // FALLBACK 3: OpenRouter
+    try {
+      const orMessages = [
+        { role: "system", content: systemPrompt },
+        ...finalMessages,
+      ];
+      const result = await callOpenRouterText(orMessages, 150);
+      return { content: cleanAIResponse(result.content), model: result.model };
+    } catch (orErr) {
+      console.error("OpenRouter fallback failed:", orErr.message);
+    }
+
+    // FALLBACK 4: Betyz
+    try {
+      const btMessages = [
+        { role: "system", content: systemPrompt },
+        ...finalMessages,
+      ];
+      const result = await callBetyzText(btMessages, 150);
+      return { content: cleanAIResponse(result.content), model: result.model };
+    } catch (betyzErr) {
+      console.error("Betyz fallback failed:", betyzErr.message);
     }
 
     // Language-specific error messages
@@ -686,12 +877,32 @@ export const analyzeReport = action({
       rawText = await callGemini(GEMINI_MODELS.FLASH, contents, { maxTokens: 1500, temperature: 0.1 });
     } catch (geminiErr) {
       console.warn("Gemini vision failed:", geminiErr.message);
+    }
 
-      // FALLBACK: Groq vision
+    // FALLBACK 1: NVIDIA NIM Vision
+    if (!rawText) {
+      try {
+        rawText = await callNvidiaVision(args.imageBase64, mimeType, prompt, 1500);
+      } catch (nvidiaErr) {
+        console.warn("NVIDIA vision failed:", nvidiaErr.message);
+      }
+    }
+
+    // FALLBACK 2: Groq vision
+    if (!rawText) {
       try {
         rawText = await callGroqVision(args.imageBase64, mimeType, prompt, 1500);
       } catch (groqErr) {
-        console.error("Both vision models failed:", groqErr.message);
+        console.warn("Groq vision failed:", groqErr.message);
+      }
+    }
+
+    // FALLBACK 3: OpenRouter vision
+    if (!rawText) {
+      try {
+        rawText = await callOpenRouterVision(args.imageBase64, mimeType, prompt, 1500);
+      } catch (orErr) {
+        console.error("OpenRouter vision failed:", orErr.message);
       }
     }
 
@@ -785,9 +996,54 @@ Please help me understand what these symptoms might indicate.`;
       console.warn("Gemini symptoms failed:", geminiErr.message);
     }
 
-    // FALLBACK: Groq
+    // FALLBACK 1: NVIDIA NIM
+    try {
+      const result = await callNvidiaText([
+        { role: "system", content: systemPrompt },
+        { role: "user",   content: userMsg },
+      ], 650);
+      return {
+        urgency: args.severity === "severe" ? "urgent" : "routine",
+        message: cleanAIResponse(result.content),
+        isEmergency: false,
+      };
+    } catch (nvidiaErr) {
+      console.warn("NVIDIA symptoms failed:", nvidiaErr.message);
+    }
+
+    // FALLBACK 2: Groq
     try {
       const result = await callGroqText([
+        { role: "system", content: systemPrompt },
+        { role: "user",   content: userMsg },
+      ], 650);
+      return {
+        urgency: args.severity === "severe" ? "urgent" : "routine",
+        message: cleanAIResponse(result.content),
+        isEmergency: false,
+      };
+    } catch (groqErr) {
+      console.warn("Groq symptoms failed:", groqErr.message);
+    }
+
+    // FALLBACK 3: OpenRouter
+    try {
+      const result = await callOpenRouterText([
+        { role: "system", content: systemPrompt },
+        { role: "user",   content: userMsg },
+      ], 650);
+      return {
+        urgency: args.severity === "severe" ? "urgent" : "routine",
+        message: cleanAIResponse(result.content),
+        isEmergency: false,
+      };
+    } catch (orErr) {
+      console.warn("OpenRouter symptoms failed:", orErr.message);
+    }
+
+    // FALLBACK 4: Betyz
+    try {
+      const result = await callBetyzText([
         { role: "system", content: systemPrompt },
         { role: "user",   content: userMsg },
       ], 650);
@@ -835,31 +1091,69 @@ export const generateHealthInsights = action({
       parts: [{ text: buildInsightsPrompt() + "\n\nPatient data:\n" + dataContext }],
     }];
 
-    // PRIMARY: Gemini Pro (better reasoning for multi-factor insights)
-    try {
-      const result    = await callGemini(GEMINI_MODELS.PRO, contents, { maxTokens: 500, temperature: 0.5 });
-      const clean     = result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    function parseInsightsJSON(text) {
+      const clean     = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
       const jsonStart = clean.indexOf("[");
       const jsonEnd   = clean.lastIndexOf("]");
       if (jsonStart !== -1 && jsonEnd !== -1) {
         return JSON.parse(clean.substring(jsonStart, jsonEnd + 1));
       }
+      return null;
+    }
+
+    // PRIMARY: Gemini Pro (better reasoning for multi-factor insights)
+    try {
+      const result  = await callGemini(GEMINI_MODELS.PRO, contents, { maxTokens: 500, temperature: 0.5 });
+      const parsed  = parseInsightsJSON(result);
+      if (parsed) return parsed;
     } catch (geminiErr) {
       console.warn("Gemini insights failed:", geminiErr.message);
     }
 
-    // FALLBACK: Groq text
+    // FALLBACK 1: NVIDIA NIM
     try {
-      const result    = await callGroqText([{
+      const result = await callNvidiaText([{
         role:    "user",
         content: buildInsightsPrompt() + "\n\nPatient data:\n" + dataContext,
       }], 500);
-      const clean     = result.content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const jsonStart = clean.indexOf("[");
-      const jsonEnd   = clean.lastIndexOf("]");
-      if (jsonStart !== -1 && jsonEnd !== -1) {
-        return JSON.parse(clean.substring(jsonStart, jsonEnd + 1));
-      }
+      const parsed = parseInsightsJSON(result.content);
+      if (parsed) return parsed;
+    } catch (nvidiaErr) {
+      console.warn("NVIDIA insights failed:", nvidiaErr.message);
+    }
+
+    // FALLBACK 2: Groq text
+    try {
+      const result  = await callGroqText([{
+        role:    "user",
+        content: buildInsightsPrompt() + "\n\nPatient data:\n" + dataContext,
+      }], 500);
+      const parsed  = parseInsightsJSON(result.content);
+      if (parsed) return parsed;
+    } catch (groqErr) {
+      console.warn("Groq insights failed:", groqErr.message);
+    }
+
+    // FALLBACK 3: OpenRouter
+    try {
+      const result  = await callOpenRouterText([{
+        role:    "user",
+        content: buildInsightsPrompt() + "\n\nPatient data:\n" + dataContext,
+      }], 500);
+      const parsed  = parseInsightsJSON(result.content);
+      if (parsed) return parsed;
+    } catch (orErr) {
+      console.warn("OpenRouter insights failed:", orErr.message);
+    }
+
+    // FALLBACK 4: Betyz
+    try {
+      const result  = await callBetyzText([{
+        role:    "user",
+        content: buildInsightsPrompt() + "\n\nPatient data:\n" + dataContext,
+      }], 500);
+      const parsed  = parseInsightsJSON(result.content);
+      if (parsed) return parsed;
     } catch {
       // fall through to defaults
     }
