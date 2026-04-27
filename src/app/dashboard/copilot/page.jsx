@@ -84,7 +84,8 @@ function CopilotPageInner() {
   const firstName = user.firstName || user.name?.split(" ")[0] || "there";
 
   const [mode, setMode] = useState(modeParam === "doctor" ? "doctor" : "copilot");
-  const [language, setLanguage] = useState(convexUser?.nativeLanguage ?? "en");
+  // Always default to "en" — the language pill the user taps must ALWAYS override any profile language
+  const [language, setLanguage] = useState("en");
   const [isTyping, setIsTyping] = useState(false);
   const [inputText, setInputText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);

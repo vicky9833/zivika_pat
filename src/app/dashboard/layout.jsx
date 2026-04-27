@@ -248,6 +248,7 @@ export default function DashboardLayout({ children }) {
                   key={item.href}
                   href={item.href}
                   aria-label={item.label}
+                  aria-current={isActive ? "page" : undefined}
                   style={{
                     flex: 1,
                     minWidth: 0,
@@ -299,6 +300,7 @@ export default function DashboardLayout({ children }) {
                 key={item.href}
                 href={item.href}
                 aria-label={item.label}
+                aria-current={isActive ? "page" : undefined}
                 style={{
                   flex: 1,
                   minWidth: 0,
@@ -333,7 +335,7 @@ export default function DashboardLayout({ children }) {
                     fontFamily: "var(--font-dm-sans, 'DM Sans', sans-serif)",
                     fontSize: 10,
                     fontWeight: isActive ? 600 : 400,
-                    color: isActive ? "#0D6E4F" : "#8EBAA3",
+                    color: isActive ? "#0D6E4F" : "#5A7A6E",
                     textDecoration: "none",
                   }}
                 >

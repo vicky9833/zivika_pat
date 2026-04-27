@@ -220,9 +220,8 @@ const SCRIPT_INSTRUCTIONS = {
 
 async function callGemini(model, contents, config = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
-  console.log("Gemini key prefix:", apiKey?.substring(0, 6));
   if (!apiKey || !apiKey.startsWith("AIza")) {
-    throw new Error("Invalid Gemini API key: " + (apiKey?.substring(0, 6) || "missing"));
+    throw new Error("Invalid or missing Gemini API key");
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -529,8 +528,11 @@ function languageInstruction(lang) {
 
 function buildCopilotSystemPrompt(patientContext, language) {
   const langRule = LANGUAGE_RULES[language] || LANGUAGE_RULES.en;
+  const langName = { en: "English", hi: "Hindi (Devanagari script only)", kn: "Kannada (Kannada script only)", ta: "Tamil (Tamil script only)", te: "Telugu (Telugu script only)", bn: "Bengali (Bengali script only)", mr: "Marathi (Devanagari script only)" }[language] || "English";
 
-  return `You are Dr. Zivika — an experienced Indian family physician (MBBS, MD General Medicine) with 20+ years treating patients across India. You are NOT an AI. You are a doctor speaking to your patient.
+  return `CRITICAL OVERRIDE: You MUST respond in ${langName} ONLY. If the patient writes in any other language, still respond in ${langName} only. Never switch languages. Never mix languages. This rule overrides everything else.
+
+You are Dr. Zivika — an experienced Indian family physician (MBBS, MD General Medicine) with 20+ years treating patients across India. You are NOT an AI. You are a doctor speaking to your patient.
 
 LANGUAGE: ${langRule}
 - For Hindi/Kannada/Tamil/Telugu/Bengali/Marathi: respond ONLY in native script. NEVER romanize. NEVER mix English words except medicine names and standard medical terms (BP, sugar, ECG).
@@ -570,7 +572,10 @@ OUTPUT STYLE:
 
 function buildDoctorSystemPrompt(language) {
   const langRule = LANGUAGE_RULES[language] || LANGUAGE_RULES.en;
-  return `You are Dr. Zivika — an experienced Indian family physician. ${langRule}
+  const langName = { en: "English", hi: "Hindi (Devanagari script only)", kn: "Kannada (Kannada script only)", ta: "Tamil (Tamil script only)", te: "Telugu (Telugu script only)", bn: "Bengali (Bengali script only)", mr: "Marathi (Devanagari script only)" }[language] || "English";
+  return `CRITICAL OVERRIDE: You MUST respond in ${langName} ONLY. Never switch languages. Never mix languages.
+
+You are Dr. Zivika — an experienced Indian family physician. ${langRule}
 
 RULES:
 1. Maximum 3 short sentences always. No markdown. No symbols.

@@ -657,8 +657,9 @@ function Step1({ name, setName, dob, setDob, gender, setGender, nameRef }) {
         subtitle="So we can personalise your health experience"
       />
 
-      <Label>Full name</Label>
+      <Label htmlFor="setup-name">Full name</Label>
       <input
+        id="setup-name"
         ref={nameRef}
         type="text"
         value={name}
@@ -667,8 +668,9 @@ function Step1({ name, setName, dob, setDob, gender, setGender, nameRef }) {
         style={inputStyle}
       />
 
-      <Label top={20}>Date of birth</Label>
+      <Label top={20} htmlFor="setup-dob">Date of birth</Label>
       <input
+        id="setup-dob"
         type="date"
         value={dob}
         onChange={(e) => setDob(e.target.value)}
@@ -1196,8 +1198,9 @@ function Step6EmergencyContact({ ecName, setEcName, ecPhone, setEcPhone, ecRelat
         </p>
       </div>
 
-      <Label>Contact name</Label>
+      <Label htmlFor="setup-ec-name">Contact name</Label>
       <input
+        id="setup-ec-name"
         type="text"
         value={ecName}
         onChange={(e) => setEcName(e.target.value)}
@@ -1237,8 +1240,9 @@ function Step6EmergencyContact({ ecName, setEcName, ecPhone, setEcPhone, ecRelat
         />
       </div>
 
-      <Label top={18}>Relationship</Label>
+      <Label top={18} htmlFor="setup-ec-relation">Relationship</Label>
       <select
+        id="setup-ec-relation"
         value={ecRelation}
         onChange={(e) => setEcRelation(e.target.value)}
         style={{
@@ -1283,10 +1287,12 @@ function StepHeading({ title, subtitle }) {
   );
 }
 
-function Label({ children, top = 0 }) {
+function Label({ children, top = 0, htmlFor }) {
   return (
-    <p
+    <label
+      htmlFor={htmlFor}
       style={{
+        display: "block",
         fontFamily: B,
         fontWeight: 700,
         fontSize: "0.82rem",
@@ -1298,7 +1304,7 @@ function Label({ children, top = 0 }) {
       }}
     >
       {children}
-    </p>
+    </label>
   );
 }
 

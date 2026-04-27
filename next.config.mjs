@@ -3,12 +3,18 @@ const require = createRequire(import.meta.url);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  compress: true,
+
   turbopack: {
     resolveAlias: {
       tailwindcss: require.resolve("tailwindcss"),
     },
   },
   images: {
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [390, 750, 1080],
+    imageSizes: [16, 32, 48, 64, 96],
+    minimumCacheTTL: 60,
     remotePatterns: [
       {
         protocol: "https",
@@ -26,6 +32,14 @@ const nextConfig = {
         protocol: "https",
         hostname: "**.googleusercontent.com",
       },
+    ],
+  },
+
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "framer-motion",
+      "convex/react",
     ],
   },
   async headers() {
