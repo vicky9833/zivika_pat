@@ -23,12 +23,16 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  if (event.request.mode === "navigate") return;
   if (event.request.url.includes("/api/")) return;
   if (event.request.url.includes("convex.cloud")) return;
   if (event.request.url.includes("clerk")) return;
   if (event.request.url.includes("googleapis.com")) return;
   if (event.request.url.includes("groq.com")) return;
+  if (event.request.url.includes("nvidia.com")) return;
+  if (event.request.url.includes("openrouter.ai")) return;
+  // Never cache auth or setup routes — always fetch fresh
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith("/auth") || url.pathname.startsWith("/setup") || url.pathname.startsWith("/sso-callback")) return;
 
   event.respondWith(
     fetch(event.request)
@@ -42,15 +46,11 @@ self.addEventListener("fetch", (event) => {
         return response;
       })
       .catch(() => {
-        return caches.match(event.request).then(
-          (cached) =>
-            cached ||
-            new Response("Network error", {
-              status: 504,
-              statusText: "Gateway Timeout",
-              headers: { "Content-Type": "text/plain" },
-            })
-        );
+        return caches.match(event.request).then((cached) => {
+          if (cached) return cached;
+          // Return a minimal offline response instead of crashing
+          return new Response("Offline", { status: 503, statusText: "Offline", headers: { "Content-Type": "text/plain" } });
+        });
       })
   );
 });

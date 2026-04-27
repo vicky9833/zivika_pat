@@ -7,7 +7,7 @@ export default function ZivikaLogo({ showText = true, size = 40 }) {
   const [imgError, setImgError] = useState(false);
 
   return (
-    <div style={{ display: "inline-flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+    <div style={{ display: "inline-flex", alignItems: "center", gap: size * 0.22, flexShrink: 0 }}>
       {/* Logo image with fallback */}
       <div style={{ flexShrink: 0, width: size, height: size, position: "relative" }}>
         {imgError ? (
@@ -34,8 +34,8 @@ export default function ZivikaLogo({ showText = true, size = 40 }) {
             fill
             style={{ objectFit: "contain" }}
             priority
-            sizes={`${size}px`}
             quality={100}
+            sizes={`${size * 3}px`}
             onError={() => setImgError(true)}
           />
         )}
@@ -46,14 +46,15 @@ export default function ZivikaLogo({ showText = true, size = 40 }) {
           <span
             style={{
               fontFamily: "var(--font-outfit, 'Outfit', sans-serif)",
-              fontWeight: 700,
-              fontSize: size * 0.5,
+              fontWeight: 800,
+              fontSize: size * 0.52,
               lineHeight: 1.15,
               background: "linear-gradient(135deg, #0D6E4F, #00C9A7)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
               whiteSpace: "nowrap",
+              letterSpacing: "-0.01em",
             }}
           >
             Zivika Labs
@@ -63,7 +64,7 @@ export default function ZivikaLogo({ showText = true, size = 40 }) {
               fontFamily: "var(--font-dm-sans, 'DM Sans', sans-serif)",
               fontSize: size * 0.2,
               fontWeight: 500,
-              letterSpacing: "0.06em",
+              letterSpacing: "0.08em",
               textTransform: "uppercase",
               color: "#8EBAA3",
               lineHeight: 1.2,
