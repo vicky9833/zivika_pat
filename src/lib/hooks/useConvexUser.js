@@ -20,7 +20,9 @@ import { useUserStore } from "../stores/user-store";
 export function useConvexUser() {
   const { user: clerkUser, isLoaded } = useUser();
   const updateUser = useUserStore((s) => s.updateUser);
+  const resetUser  = useUserStore((s) => s.resetUser);
   const createAttempted = useRef(false);
+  const prevClerkIdRef  = useRef(null);
   const [localUserId, setLocalUserId] = useState(null);
 
   // Public query — does NOT require Clerk auth to succeed
@@ -35,8 +37,40 @@ export function useConvexUser() {
 
   // Bootstrap: create user record when Clerk webhook hasn't fired yet
   useEffect(() => {
-    if (!isLoaded || !clerkUser) return;
-    if (convexUser !== null) return; // still loading (undefined) or already exists
+    // No Clerk user — reset store and bail
+    if (!isLoaded || !clerkUser) {
+      if (prevClerkIdRef.current) {
+        resetUser();
+        prevClerkIdRef.current = null;
+        createAttempted.current = false;
+      }
+      return;
+    }
+
+    // Different user signed in — clear stale store data
+    if (prevClerkIdRef.current && prevClerkIdRef.current !== clerkUser.id) {
+      resetUser();
+      createAttempted.current = false;
+    }
+    prevClerkIdRef.current = clerkUser.id;
+
+    // Show Clerk data immediately while Convex record is still loading
+    if (convexUser === undefined) {
+      const name =
+        clerkUser.fullName ||
+        clerkUser.primaryEmailAddress?.emailAddress?.split("@")[0] ||
+        "User";
+      const firstName = clerkUser.firstName || name.split(" ")[0];
+      const words = name.trim().split(/\s+/).filter(Boolean);
+      const initials =
+        words.length >= 2
+          ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
+          : (words[0]?.slice(0, 2) ?? "ZL").toUpperCase();
+      updateUser({ name, firstName, initials });
+      return;
+    }
+
+    if (convexUser !== null) return; // already exists
     if (createAttempted.current) return;
     createAttempted.current = true;
 

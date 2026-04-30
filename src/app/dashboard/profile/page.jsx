@@ -29,6 +29,7 @@ export default function ProfilePage() {
   const { user: clerkUser } = useUser();
   const { convexUser } = useConvexUser();
   const user = useUserStore((s) => s.user);
+  const resetUser = useUserStore((s) => s.resetUser);
   const records = useRecordsStore((s) => s.records);
   const vitalsReadings = useVitalsStore((s) => s.readings);
   const getLatestVitals = useVitalsStore((s) => s.getLatestVitals);
@@ -114,7 +115,7 @@ export default function ProfilePage() {
   async function handleLogout() {
     localStorage.removeItem("zivika_onboarded");
     localStorage.removeItem("zivika_profile_complete");
-    useUserStore.getState().updateUser({});
+    resetUser();
     toast("Logged out successfully", "info");
     await signOut();
     router.replace("/onboarding");

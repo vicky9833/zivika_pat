@@ -76,4 +76,6 @@ export const useUserStore = create((set, get) => ({
     set((state) => ({
       user: { ...state.user, biometricLock: val },
     })),
+
+  resetUser: () => set({ user: { ...DEFAULT_USER } }),
 }));

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ChevronRight, Pill, Sparkles, Check, Lightbulb,
   Heart, Wind, Activity, Thermometer, Footprints, Moon,
-  Brain, Leaf, Droplets,
+
   Camera, MessageCircle, Rss, ClipboardList,
   ArrowUpRight, CalendarDays, CalendarHeart,
   HeartPulse, Users, Frown, Meh, Smile, SmilePlus, Sun, Flame,
@@ -23,6 +23,7 @@ import { t } from "@/lib/translations";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useConvexUser } from "@/lib/hooks/useConvexUser";
+import { useConvexRecords } from "@/lib/hooks/useConvexRecords";
 
 /* ─── Utilities ──────────────────────────────────────────────────────────── */
 function getHumanGreeting(firstName, meds, language) {
@@ -532,17 +533,6 @@ const DAILY_TIPS = [
   "Regular hand-washing prevents over 80% of common infectious illnesses.",
 ];
 
-const HEALTH_FACTS = [
-  { icon: Heart,       color: "#E74C3C", text: "Normal resting heart rate: 60–100 bpm" },
-  { icon: Droplets,    color: "#2980B9", text: "Ideal blood pressure: below 120/80 mmHg" },
-  { icon: Wind,        color: "#0891B2", text: "Healthy blood oxygen (SpO₂): 95–100%" },
-  { icon: Thermometer, color: "#EA580C", text: "Normal body temperature: 97–99.5°F" },
-  { icon: Footprints,  color: "#0D9488", text: "Target 7,000–10,000 steps every day" },
-  { icon: Moon,        color: "#4F46E5", text: "Adults need 7–9 hours of quality sleep" },
-  { icon: Brain,       color: "#7C3AED", text: "Mental activity daily reduces cognitive decline" },
-  { icon: Leaf,        color: "#16A34A", text: "Eat 5 servings of vegetables & fruits daily" },
-];
-
 function getGreetingGradient() {
   const hour = new Date().getHours();
   if (hour >= 5 && hour < 12) {
@@ -564,55 +554,6 @@ const PHASE_LABELS = {
   hold:   "Hold steady…",
   exhale: "Breathe out…",
 };
-
-/* ─── HealthTicker ───────────────────────────────────────────────────────── */
-function HealthTicker() {
-  const doubled = [...HEALTH_FACTS, ...HEALTH_FACTS];
-  return (
-    <div style={{ overflow: "hidden", position: "relative", marginBottom: 20 }}>
-      <div style={{
-        position: "absolute", left: 0, top: 0, bottom: 0, width: 32,
-        background: "linear-gradient(to right, #F0F7F4, transparent)",
-        zIndex: 1, pointerEvents: "none",
-      }} />
-      <div style={{
-        position: "absolute", right: 0, top: 0, bottom: 0, width: 32,
-        background: "linear-gradient(to left, #F0F7F4, transparent)",
-        zIndex: 1, pointerEvents: "none",
-      }} />
-      <motion.div
-        animate={{ x: ["0%", "-50%"] }}
-        transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
-        style={{ display: "flex", gap: 8, width: "max-content" }}
-      >
-        {doubled.map((fact, i) => {
-          const Icon = fact.icon;
-          return (
-            <div
-              key={i}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 7,
-                backgroundColor: "#fff",
-                border: "1px solid #DCE8E2",
-                borderRadius: 40,
-                padding: "7px 14px",
-                flexShrink: 0,
-                boxShadow: "0 1px 4px rgba(13,110,79,0.06)",
-              }}
-            >
-              <Icon size={13} color={fact.color} />
-              <span style={{ fontFamily: B, fontSize: "0.6875rem", color: "#5A7A6E", whiteSpace: "nowrap" }}>
-                {fact.text}
-              </span>
-            </div>
-          );
-        })}
-      </motion.div>
-    </div>
-  );
-}
 
 /* ─── BreathingCard ──────────────────────────────────────────────────────── */
 function BreathingCard({ language }) {
@@ -758,6 +699,7 @@ export default function DashboardHome() {
   const latestVitals = useMemo(() => getLatestVitals(), [vitalsReadings]);
   const { medications, toggleTaken, getTodayAdherence } = useMedicationsStore();
   const records = useRecordsStore((s) => s.records);
+  const { records: convexRecords } = useConvexRecords(convexUser);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -801,7 +743,7 @@ export default function DashboardHome() {
     return result.slice(0, 6);
   }, [latestVitals]);
 
-  const hasData = homeVitals.length > 0 || medications.length > 0 || records.length > 0;
+  const hasData = homeVitals.length > 0 || medications.length > 0 || records.length > 0 || convexRecords.length > 0;
   const isNewUser = !hasData;
   const twinScores = useMemo(
     () => (hasData ? computeTwinScores(records, latestVitals, medications) : null),
@@ -906,18 +848,7 @@ export default function DashboardHome() {
       </motion.div>
 
       {/* ════════════════════════════════════════════════════════ */}
-      {/* SECTION 2: Health Facts Ticker                        */}
-      {/* ════════════════════════════════════════════════════════ */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: "easeOut", delay: 0.08 }}
-      >
-        <HealthTicker />
-      </motion.div>
-
-      {/* ════════════════════════════════════════════════════════ */}
-      {/* SECTION 3: Daily Check-in                             */}
+      {/* SECTION 2: Daily Check-in                             */}
       {/* ════════════════════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
